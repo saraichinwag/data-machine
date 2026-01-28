@@ -2,10 +2,11 @@
 /**
  * WP-CLI Flows Command
  *
- * Provides CLI access to flow listing operations with filtering.
+ * Provides CLI access to flow operations including listing, creation, and execution.
  * Wraps FlowAbilities API primitive.
  *
  * @package DataMachine\Cli\Commands
+ * @since 0.15.3 Added create subcommand.
  */
 
 namespace DataMachine\Cli\Commands;
@@ -30,7 +31,7 @@ class FlowsCommand extends BaseCommand {
 	 * ## OPTIONS
 	 *
 	 * [<args>...]
-	 * : Subcommand and arguments. Accepts: list [pipeline_id], get <flow_id>, run <flow_id>.
+	 * : Subcommand and arguments. Accepts: list [pipeline_id], get <flow_id>, run <flow_id>, create.
 	 *
 	 * [--handler=<slug>]
 	 * : Filter flows using this handler slug (any step that uses this handler).
@@ -74,6 +75,24 @@ class FlowsCommand extends BaseCommand {
 	 *
 	 * [--timestamp=<unix>]
 	 * : Unix timestamp for delayed execution (future time required).
+	 *
+	 * [--pipeline_id=<id>]
+	 * : Pipeline ID for flow creation (create subcommand).
+	 *
+	 * [--name=<name>]
+	 * : Flow name (create subcommand).
+	 *
+	 * [--step_configs=<json>]
+	 * : JSON object with step configurations keyed by step_type (create subcommand).
+	 *
+	 * [--scheduling=<interval>]
+	 * : Scheduling interval (manual, hourly, daily, etc.) (create subcommand).
+	 * ---
+	 * default: manual
+	 * ---
+	 *
+	 * [--dry-run]
+	 * : Validate without creating (create subcommand).
 	 *
 	 * ## EXAMPLES
 	 *
@@ -121,10 +140,29 @@ class FlowsCommand extends BaseCommand {
 	 *
 	 *     # Schedule a flow for later execution
 	 *     wp datamachine flows run 42 --timestamp=1735689600
+	 *
+	 *     # Create a new flow (minimal)
+	 *     wp datamachine flows create --pipeline_id=3 --name="My Flow"
+	 *
+	 *     # Create a flow with step configuration
+	 *     wp datamachine flows create --pipeline_id=3 --name="Dice.fm Charleston" \
+	 *       --step_configs='{"event_import":{"handler_slug":"dice_fm","handler_config":{"city":"Charleston"}}}'
+	 *
+	 *     # Create a flow with scheduling
+	 *     wp datamachine flows create --pipeline_id=3 --name="Daily RSS" --scheduling=daily
+	 *
+	 *     # Dry-run validation
+	 *     wp datamachine flows create --pipeline_id=3 --name="Test" --dry-run
 	 */
 	public function __invoke( array $args, array $assoc_args ): void {
 		$flow_id     = null;
 		$pipeline_id = null;
+
+		// Handle 'create' subcommand: `flows create --pipeline_id=3 --name="Test"`.
+		if ( ! empty( $args ) && 'create' === $args[0] ) {
+			$this->createFlow( $assoc_args );
+			return;
+		}
 
 		// Handle 'get' subcommand: `flows get 42`.
 		if ( ! empty( $args ) && 'get' === $args[0] ) {
@@ -206,6 +244,103 @@ class FlowsCommand extends BaseCommand {
 		$this->format_items( $items, $this->default_fields, $assoc_args, 'id' );
 		$this->output_pagination( $offset, count( $flows ), $total, $format, 'flows' );
 		$this->outputFilters( $result['filters_applied'] ?? array(), $format );
+	}
+
+	/**
+	 * Create a new flow.
+	 *
+	 * @param array $assoc_args Associative arguments (pipeline_id, name, step_configs, scheduling, dry-run).
+	 */
+	private function createFlow( array $assoc_args ): void {
+		$pipeline_id = isset( $assoc_args['pipeline_id'] ) ? (int) $assoc_args['pipeline_id'] : null;
+		$flow_name   = $assoc_args['name'] ?? null;
+		$scheduling  = $assoc_args['scheduling'] ?? 'manual';
+		$dry_run     = isset( $assoc_args['dry-run'] );
+		$format      = $assoc_args['format'] ?? 'table';
+
+		if ( ! $pipeline_id ) {
+			WP_CLI::error( 'Required: --pipeline_id=<id>' );
+			return;
+		}
+
+		if ( ! $flow_name ) {
+			WP_CLI::error( 'Required: --name=<name>' );
+			return;
+		}
+
+		$step_configs = array();
+		if ( isset( $assoc_args['step_configs'] ) ) {
+			$decoded = json_decode( $assoc_args['step_configs'], true );
+			if ( null === $decoded && '' !== $assoc_args['step_configs'] ) {
+				WP_CLI::error( 'Invalid JSON in --step_configs' );
+				return;
+			}
+			$step_configs = $decoded ?? array();
+		}
+
+		$input = array(
+			'pipeline_id'       => $pipeline_id,
+			'flow_name'         => $flow_name,
+			'scheduling_config' => array( 'interval' => $scheduling ),
+			'step_configs'      => $step_configs,
+		);
+
+		if ( $dry_run ) {
+			$input['validate_only'] = true;
+			$input['flows']         = array(
+				array(
+					'pipeline_id'       => $pipeline_id,
+					'flow_name'         => $flow_name,
+					'scheduling_config' => array( 'interval' => $scheduling ),
+					'step_configs'      => $step_configs,
+				),
+			);
+		}
+
+		$ability = new \DataMachine\Abilities\FlowAbilities();
+		$result  = $ability->executeCreateFlow( $input );
+
+		if ( ! $result['success'] ) {
+			WP_CLI::error( $result['error'] ?? 'Failed to create flow' );
+			return;
+		}
+
+		if ( $dry_run ) {
+			WP_CLI::success( 'Validation passed.' );
+			if ( isset( $result['would_create'] ) && 'json' === $format ) {
+				WP_CLI::line( wp_json_encode( $result['would_create'], JSON_PRETTY_PRINT ) );
+			} elseif ( isset( $result['would_create'] ) ) {
+				foreach ( $result['would_create'] as $preview ) {
+					WP_CLI::log( sprintf(
+						'Would create: "%s" on pipeline %d (scheduling: %s)',
+						$preview['flow_name'],
+						$preview['pipeline_id'],
+						$preview['scheduling']
+					) );
+				}
+			}
+			return;
+		}
+
+		WP_CLI::success( sprintf( 'Flow created: ID %d', $result['flow_id'] ) );
+		WP_CLI::log( sprintf( 'Name: %s', $result['flow_name'] ) );
+		WP_CLI::log( sprintf( 'Pipeline ID: %d', $result['pipeline_id'] ) );
+		WP_CLI::log( sprintf( 'Synced steps: %d', $result['synced_steps'] ?? 0 ) );
+
+		if ( ! empty( $result['configured_steps'] ) ) {
+			WP_CLI::log( sprintf( 'Configured steps: %s', implode( ', ', $result['configured_steps'] ) ) );
+		}
+
+		if ( ! empty( $result['configuration_errors'] ) ) {
+			WP_CLI::warning( 'Some step configurations failed:' );
+			foreach ( $result['configuration_errors'] as $error ) {
+				WP_CLI::log( sprintf( '  - %s: %s', $error['step_type'] ?? 'unknown', $error['error'] ?? 'unknown error' ) );
+			}
+		}
+
+		if ( 'json' === $format && isset( $result['flow_data'] ) ) {
+			WP_CLI::line( wp_json_encode( $result['flow_data'], JSON_PRETTY_PRINT ) );
+		}
 	}
 
 	/**
