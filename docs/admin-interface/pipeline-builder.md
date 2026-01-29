@@ -26,7 +26,7 @@ Step and handler configuration is driven by React modals and handler schemas fro
 
 - **Handler selection** uses `HandlerSelectionModal.jsx`.
 - **Handler settings** uses `HandlerSettingsModal.jsx` (not a PHP template). The modal renders fields from the handler schema and submits updates via the flow update mutation.
-- **OAuth connection** is surfaced through an OAuth modal (`OAuthAuthenticationModal.jsx`) and popup handler components in `components/modals/oauth/`.
+- **OAuth connection** is surfaced through an OAuth modal (`OAuthAuthenticationModal.jsx`) and popup handler components in `inc/Core/Admin/Pages/Pipelines/assets/react/components/modals/oauth/`.
 
 ## Integrated Chat Sidebar
 
@@ -149,29 +149,29 @@ For the authoritative list of endpoints used by the UI, refer to `inc/Core/Admin
 
 The Pipelines interface implements a model-view separation pattern for handler state management:
 
-**HandlerProvider** (`context/HandlerProvider.jsx`):
+**HandlerProvider** (`inc/Core/Admin/Pages/Pipelines/assets/react/context/HandlerProvider.jsx`):
 - React context providing handler state across components
 - Centralizes handler selection and configuration state
 - Reduces prop drilling for handler-related data
 
-**HandlerModel** (`models/HandlerModel.js`):
+**HandlerModel** (`inc/Core/Admin/Pages/Pipelines/assets/react/models/HandlerModel.js`):
 - Abstract model layer for handler data operations
 - Provides consistent interface for handler state management
 - Separates business logic from UI components
 
-**HandlerFactory** (`models/HandlerFactory.js`):
+**HandlerFactory** (`inc/Core/Admin/Pages/Pipelines/assets/react/models/HandlerFactory.js`):
 - Factory pattern for handler model instantiation
 - Creates appropriate handler models based on handler type
 - Centralizes handler model creation logic
 
-**Individual Handler Models** (`models/handlers/`):
+**Individual Handler Models** (`inc/Core/Admin/Pages/Pipelines/assets/react/models/handlers/`):
 - Type-specific handler models (e.g., TwitterHandlerModel, GoogleSheetsHandlerModel)
 - Encapsulate handler-specific behavior and validation
 - Provide handler-specific methods and computed properties
 
 ### Service Layer Architecture
 
-**handlerService** (`services/handlerService.js`):
+**handlerService** (`inc/Core/Admin/Pages/Pipelines/assets/react/services/handlerService.js`):
 - Service abstraction for handler-related API operations
 - Separates API communication from component logic
 - Provides reusable handler operation methods
@@ -185,7 +185,7 @@ The Pipelines interface implements a model-view separation pattern for handler s
 
 ### Modal Management System
 
-**ModalSwitch** (`components/shared/ModalSwitch.jsx`):
+**ModalSwitch** (`inc/Core/Admin/Pages/Pipelines/assets/react/components/shared/ModalSwitch.jsx`):
 - Centralized modal rendering component
 - Routes modal types to appropriate modal components
 - Replaces scattered conditional modal logic

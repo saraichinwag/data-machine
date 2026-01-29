@@ -62,12 +62,6 @@ add_filter('datamachine_directives', function($directives) {
 **Configuration**: Settings → AI Configuration → Global System Prompt
 **Agent Types**: `['all']`
 
-#### GlobalToolsDirective (Priority 25)
-**File**: `/inc/Engine/AI/Directives/GlobalToolsDirective.php`
-**Purpose**: Provides descriptions of available global tools (google_search, local_search, web_fetch, wordpress_post_reader)
-**Behavior**: Only includes tools that are enabled and configured
-**Agent Types**: `['all']`
-
 #### SiteContextDirective (Priority 50)
 **File**: `/inc/Engine/AI/Directives/SiteContextDirective.php`
 **Purpose**: Injects WordPress site context (site name, URL, description, post types, taxonomies)
@@ -75,22 +69,22 @@ add_filter('datamachine_directives', function($directives) {
 **Agent Types**: `['all']`
 
 #### PipelineCoreDirective (Priority 10)
-**File**: `/inc/Engine/AI/Directives/PipelineCoreDirective.php`
+**File**: `/inc/Core/Steps/AI/Directives/PipelineCoreDirective.php`
 **Purpose**: Foundational pipeline agent identity with tool instructions
 **Agent Types**: `['pipeline']`
 
 #### PipelineSystemPromptDirective (Priority 30)
-**File**: `/inc/Engine/AI/Directives/PipelineSystemPromptDirective.php`
+**File**: `/inc/Core/Steps/AI/Directives/PipelineSystemPromptDirective.php`
 **Purpose**: User-defined pipeline system prompts
 **Agent Types**: `['pipeline']`
 
 #### PipelineContextDirective (Priority 40)
-**File**: `/inc/Engine/AI/Directives/PipelineContextDirective.php`
+**File**: `/inc/Core/Steps/AI/Directives/PipelineContextDirective.php`
 **Purpose**: Pipeline context files and workflow information
 **Agent Types**: `['pipeline']`
 
 #### ChatAgentDirective (Priority 10)
-**File**: `/inc/Engine/AI/Directives/ChatAgentDirective.php`
+**File**: `/inc/Api/Chat/ChatAgentDirective.php`
 **Purpose**: Chat agent identity and capabilities
 **Agent Types**: `['chat']`
 

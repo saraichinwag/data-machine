@@ -1,8 +1,8 @@
 # Tool Execution Architecture
 
 **Files**:
-- `/inc/Engine/AI/ToolExecutor.php`
-- `/inc/Engine/AI/ToolParameters.php`
+- `/inc/Engine/AI/Tools/ToolExecutor.php`
+- `/inc/Engine/AI/Tools/ToolParameters.php`
 
 **Since**: 0.2.0
 
@@ -19,7 +19,7 @@ Together, these components ensure consistent tool behavior across all AI agents 
 
 ## ToolExecutor
 
-**File**: `/inc/Engine/AI/ToolExecutor.php`
+**File**: `/inc/Engine/AI/Tools/ToolExecutor.php`
 
 Handles tool discovery via filters, enablement validation, and execution with comprehensive error handling.
 
@@ -334,7 +334,7 @@ try {
 
 ## ToolParameters
 
-**File**: `/inc/Engine/AI/ToolParameters.php`
+**File**: `/inc/Engine/AI/Tools/ToolParameters.php`
 
 Centralized parameter building for AI tool execution. Merges AI-provided parameters with engine context to create complete parameter sets.
 

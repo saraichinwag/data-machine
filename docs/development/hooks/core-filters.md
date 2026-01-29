@@ -777,7 +777,7 @@ add_filter('datamachine_directives', function($directives) {
 
 Data Machine's Universal Engine provides shared AI infrastructure serving both Pipeline and Chat agents. See `/docs/core-system/universal-engine.md` for complete architecture documentation.
 
-### ToolParameters (`/inc/Engine/AI/ToolParameters.php`)
+### ToolParameters (`/inc/Engine/AI/Tools/ToolParameters.php`)
 
 **Purpose**: Centralized parameter building for all AI tools with unified flat structure.
 
@@ -831,7 +831,7 @@ Builds parameters for handler-specific tools with engine data merging (source_ur
 - Tool metadata integration
 - Engine parameter injection for handlers (source_url for link attribution, image_url for media handling)
 
-### ToolExecutor (`/inc/Engine/AI/ToolExecutor.php`)
+### ToolExecutor (`/inc/Engine/AI/Tools/ToolExecutor.php`)
 
 **Purpose**: Universal tool discovery and execution infrastructure.
 

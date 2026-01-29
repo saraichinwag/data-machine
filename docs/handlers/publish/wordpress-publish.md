@@ -428,11 +428,11 @@ The modular WordPress publish handler architecture provides enhanced maintainabi
 
 ## WordPress Shared Components
 
-The WordPress publish handler uses centralized shared components from `/datamachine/inc/Core/WordPress/` that provide reusable functionality across all WordPress-related handlers (publish, fetch, update).
+The WordPress publish handler uses centralized shared components from `/inc/Core/WordPress/` that provide reusable functionality across all WordPress-related handlers (publish, fetch, update).
 
 ### WordPressPublishHelper
 
-**Location**: `/datamachine/inc/Core/WordPress/WordPressPublishHelper.php`
+**Location**: `/inc/Core/WordPress/WordPressPublishHelper.php`
 **Purpose**: WordPress-specific publishing operations
 **Since**: 0.2.7
 
@@ -460,7 +460,7 @@ $content = WordPressPublishHelper::applySourceAttribution($content, $source_url,
 
 ### TaxonomyHandler
 
-**Location**: `/datamachine/inc/Core/WordPress/TaxonomyHandler.php`
+**Location**: `/inc/Core/WordPress/TaxonomyHandler.php`
 **Purpose**: Dynamic taxonomy assignment with configuration-based processing
 **Since**: 0.2.1
 
@@ -468,7 +468,7 @@ Processes taxonomy assignments based on configuration (skip, AI-decided, or pre-
 
 ### WordPressSettingsResolver
 
-**Location**: `/datamachine/inc/Core/WordPress/WordPressSettingsResolver.php`
+**Location**: `/inc/Core/WordPress/WordPressSettingsResolver.php`
 **Purpose**: Configuration resolution with system defaults override
 **Since**: 0.2.7
 
@@ -484,7 +484,7 @@ $post_author = $resolver->resolvePostAuthor($handler_config);
 
 ### WordPressSettingsHandler
 
-**Location**: `/datamachine/inc/Core/WordPress/WordPressSettingsHandler.php`
+**Location**: `/inc/Core/WordPress/WordPressSettingsHandler.php`
 **Purpose**: Centralized WordPress settings utilities for handler configuration
 **Since**: 0.2.1
 
@@ -505,7 +505,7 @@ $users = WordPressSettingsHandler::get_user_options();
 
 ### WordPressFilters
 
-**Location**: `/datamachine/inc/Core/WordPress/WordPressFilters.php`
+**Location**: `/inc/Core/WordPress/WordPressFilters.php`
 **Purpose**: Self-registration filter system for WordPress components
 **Since**: 0.2.0
 

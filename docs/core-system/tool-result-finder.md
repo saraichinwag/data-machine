@@ -1,6 +1,6 @@
 # ToolResultFinder
 
-**File**: `/inc/Engine/AI/ToolResultFinder.php`
+**File**: `/inc/Engine/AI/Tools/ToolResultFinder.php`
 **Since**: 0.2.0
 
 Universal utility for finding AI tool execution results in data packets. Part of the Universal Engine infrastructure providing reusable data packet interpretation for all step types.
@@ -335,7 +335,7 @@ $result = ToolResultFinder::findHandlerResult($data, 'twitter', $type = 'tool_re
 
 ---
 
-**File**: `/inc/Engine/AI/ToolResultFinder.php`
+**File**: `/inc/Engine/AI/Tools/ToolResultFinder.php`
 **Since**: 0.2.0
 **Methods**: `findHandlerResult(array $data, string $handler): ?array`
 **Usage**: Update steps, custom step types, handler verification utilities

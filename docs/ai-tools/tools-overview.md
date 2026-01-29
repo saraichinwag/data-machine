@@ -235,7 +235,7 @@ See Tool Manager for complete documentation.
 
 ### ToolExecutor Pattern
 
-All tools integrate via the universal `ToolExecutor` class (`/inc/Engine/AI/ToolExecutor.php`):
+All tools integrate via the universal `ToolExecutor` class (`/inc/Engine/AI/Tools/ToolExecutor.php`):
 
 ```php
 // Tool discovery
@@ -268,7 +268,7 @@ add_filter('datamachine_tool_enabled', function($enabled, $tool_id, $agent_type)
 
 ### Parameter Building
 
-`ToolParameters` (`/inc/Engine/AI/ToolParameters.php`) provides unified parameter construction:
+`ToolParameters` (`/inc/Engine/AI/Tools/ToolParameters.php`) provides unified parameter construction:
 
 **Standard Tools** (global tools):
 ```php
@@ -401,13 +401,13 @@ AI agents receive available tools based on:
 - Continues conversation loop until AI completes without tool calls
 - Prevents infinite loops with maximum turn counter
 
-**ToolExecutor** (`/inc/Engine/AI/ToolExecutor.php`):
+**ToolExecutor** (`/inc/Engine/AI/Tools/ToolExecutor.php`):
 - Universal tool discovery via `getAvailableTools()` method
 - Filter-based tool enablement per agent type (pipeline vs chat)
 - Handler tool and global tool integration
 - Tool configuration validation
 
-**ToolParameters** (`/inc/Engine/AI/ToolParameters.php`):
+**ToolParameters** (`/inc/Engine/AI/Tools/ToolParameters.php`):
 - Centralized parameter building for all AI tools
 - `buildParameters()` for standard AI tools with clean data extraction
 - `buildForHandlerTool()` for handler tools with engine parameters (source_url, image_url)
