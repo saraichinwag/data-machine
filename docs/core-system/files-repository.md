@@ -43,8 +43,11 @@ $job_dir = $dir_manager->get_job_directory($pipeline_id, $flow_id, $job_id);
 use DataMachine\Core\FilesRepository\FileStorage;
 
 $storage = new FileStorage();
-$stored_path = $storage->store_file($content, $filename, $job_id);
-$file_content = $storage->get_file_content($filename, $job_id);
+$context = [
+    'pipeline_id' => $pipeline_id,
+    'flow_id' => $flow_id,
+];
+$stored_path = $storage->store_file($source_path, $filename, $context);
 ```
 
 **Key Methods**:
@@ -105,18 +108,21 @@ if ($validation['valid']) {
 use DataMachine\Core\FilesRepository\RemoteFileDownloader;
 
 $downloader = new RemoteFileDownloader();
-$result = $downloader->download_and_store($url, $job_id);
+$context = [
+    'pipeline_id' => $pipeline_id,
+    'flow_id' => $flow_id,
+];
+$result = $downloader->download_remote_file($url, $filename, $context);
 
-if ($result['success']) {
+if ($result) {
     $local_path = $result['path'];
-    $filename = $result['filename'];
+    $stored_filename = $result['filename'];
+    $file_url = $result['url'];
 }
 ```
 
 **Key Methods**:
-- `download_and_store($url, $job_id)`: Download and store remote file
-- `validate_remote_file($url)`: Validate remote file before download
-- `get_file_info_from_url($url)`: Extract filename and extension from URL
+- `download_remote_file($url, $filename, $context, $options)`: Download remote file and store in flow files directory
 
 ### FileRetrieval
 
@@ -162,9 +168,13 @@ use DataMachine\Core\FilesRepository\{
 
 // Download and validate image
 $downloader = new RemoteFileDownloader();
-$result = $downloader->download_and_store($image_url, $job_id);
+$context = [
+    'pipeline_id' => $pipeline_id,
+    'flow_id' => $flow_id,
+];
+$result = $downloader->download_remote_file($image_url, $filename, $context);
 
-if ($result['success']) {
+if ($result) {
     $validator = new ImageValidator();
     $validation = $validator->validate_image_file($result['path']);
 
