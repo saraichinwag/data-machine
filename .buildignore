@@ -3,8 +3,10 @@
 .gitignore
 .github/
 .DS_Store
+**/.DS_Store
 *.log
 .eslintrc.js
+**/.eslintrc.js
 
 # Build system (exclude build files but not the final product)
 build.sh

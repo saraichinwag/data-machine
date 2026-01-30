@@ -180,7 +180,10 @@ class LocalSearchAbilities {
 		global $wpdb;
 
 		$post_type_placeholders = implode( ',', array_fill( 0, count( $post_types ), '%s' ) );
+		$like_query             = '%' . $wpdb->esc_like( $query ) . '%';
+		$prepare_args           = array_merge( $post_types, array( $like_query, $limit ) );
 
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Placeholders are dynamically generated for IN clause.
 		$sql = $wpdb->prepare(
 			"SELECT ID FROM {$wpdb->posts}
              WHERE post_type IN ({$post_type_placeholders})
@@ -188,9 +191,10 @@ class LocalSearchAbilities {
              AND post_title LIKE %s
              ORDER BY post_date DESC
              LIMIT %d",
-			...array_merge( $post_types, array( '%' . $wpdb->esc_like( $query ) . '%', $limit ) )
+			$prepare_args
 		);
 
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Query is prepared above; caching handled at ability level.
 		$post_ids = $wpdb->get_col( $sql );
 
 		if ( empty( $post_ids ) ) {

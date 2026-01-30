@@ -81,27 +81,25 @@ if ( function_exists( 'as_unschedule_all_actions' ) ) {
 delete_transient( 'datamachine_activation_notice' );
 
 /**
- * Recursively delete a directory and its contents.
+ * Recursively delete a directory and its contents using WP_Filesystem.
  *
  * @param string $dir Directory path to delete.
  * @return bool True on success, false on failure.
  */
 function datamachine_recursive_delete( $dir ) {
-	if ( ! is_dir( $dir ) ) {
+	global $wp_filesystem;
+
+	if ( ! function_exists( 'WP_Filesystem' ) ) {
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+	}
+
+	if ( ! WP_Filesystem() ) {
 		return false;
 	}
 
-	$files = array_diff( scandir( $dir ), array( '.', '..' ) );
-
-	foreach ( $files as $file ) {
-		$path = trailingslashit( $dir ) . $file;
-
-		if ( is_dir( $path ) ) {
-			datamachine_recursive_delete( $path );
-		} else {
-			wp_delete_file( $path );
-		}
+	if ( ! $wp_filesystem->is_dir( $dir ) ) {
+		return false;
 	}
 
-	return rmdir( $dir );
+	return $wp_filesystem->delete( $dir, true );
 }

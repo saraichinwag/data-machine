@@ -448,15 +448,16 @@ function datamachine_check_requirements() {
 	}
 
 	global $wp_version;
-	if ( version_compare( $wp_version, '6.2', '<' ) ) {
+	$current_wp_version = $wp_version ?? '0.0.0';
+	if ( version_compare( $current_wp_version, '6.9', '<' ) ) {
 		add_action(
 			'admin_notices',
-			function () use ( $wp_version ) {
+			function () use ( $current_wp_version ) {
 				echo '<div class="notice notice-error"><p>';
 				printf(
 					esc_html( 'Data Machine requires WordPress %2$s or higher. You are running WordPress %1$s.' ),
-					esc_html( $wp_version ),
-					'6.2'
+					esc_html( $current_wp_version ),
+					'6.9'
 				);
 				echo '</p></div>';
 			}
