@@ -172,6 +172,32 @@ class Flows {
 	}
 
 	/**
+	 * Get all flows across all pipelines.
+	 *
+	 * Used for global operations like handler-based filtering across the entire system.
+	 *
+	 * @return array All flows with decoded configs.
+	 */
+	public function get_all_flows(): array {
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$flows = $this->wpdb->get_results(
+			$this->wpdb->prepare( 'SELECT * FROM %i ORDER BY pipeline_id ASC, flow_id ASC', $this->table_name ),
+			ARRAY_A
+		);
+
+		if ( null === $flows ) {
+			return array();
+		}
+
+		foreach ( $flows as &$flow ) {
+			$flow['flow_config']       = json_decode( $flow['flow_config'], true ) ?? array();
+			$flow['scheduling_config'] = json_decode( $flow['scheduling_config'], true ) ?? array();
+		}
+
+		return $flows;
+	}
+
+	/**
 	 * Get paginated flows for a pipeline
 	 *
 	 * @param int $pipeline_id Pipeline ID

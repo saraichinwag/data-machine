@@ -138,14 +138,22 @@ class FlowStepAbilities {
 			'datamachine/configure-flow-steps',
 			array(
 				'label'               => __( 'Configure Flow Steps', 'data-machine' ),
-				'description'         => __( 'Bulk configure flow steps across a pipeline or multiple flows. Supports handler switching with field mapping.', 'data-machine' ),
+				'description'         => __( 'Bulk configure flow steps across a pipeline or globally. Supports handler switching with field mapping.', 'data-machine' ),
 				'category'            => 'datamachine',
 				'input_schema'        => array(
 					'type'       => 'object',
 					'properties' => array(
 						'pipeline_id'         => array(
 							'type'        => 'integer',
-							'description' => __( 'Pipeline ID for same-settings bulk mode', 'data-machine' ),
+							'description' => __( 'Pipeline ID for pipeline-scoped bulk mode. Requires handler_slug filter or all_flows=true.', 'data-machine' ),
+						),
+						'all_flows'           => array(
+							'type'        => 'boolean',
+							'description' => __( 'When true with pipeline_id, targets ALL flows in pipeline. Explicit opt-in required.', 'data-machine' ),
+						),
+						'global_scope'        => array(
+							'type'        => 'boolean',
+							'description' => __( 'When true with handler_slug, targets all flows using that handler across ALL pipelines.', 'data-machine' ),
 						),
 						'step_type'           => array(
 							'type'        => 'string',
@@ -565,6 +573,11 @@ class FlowStepAbilities {
 		// Check for cross-pipeline mode
 		if ( ! empty( $input['updates'] ) && is_array( $input['updates'] ) ) {
 			return $this->executeConfigureFlowStepsCrossPipeline( $input );
+		}
+
+		// Check for global handler scope mode
+		if ( ! empty( $input['global_scope'] ) && ! empty( $input['handler_slug'] ) ) {
+			return $this->executeConfigureFlowStepsGlobalHandler( $input );
 		}
 
 		$pipeline_id         = $input['pipeline_id'] ?? null;
@@ -1075,6 +1088,225 @@ class FlowStepAbilities {
 			'updated_steps'  => $updated_details,
 			'message'        => $message,
 			'mode'           => 'cross_pipeline',
+		);
+
+		if ( ! empty( $errors ) ) {
+			$response['errors'] = $errors;
+		}
+
+		return $response;
+	}
+
+	/**
+	 * Execute global handler scope configuration.
+	 *
+	 * Configures all flows using a specific handler across ALL pipelines.
+	 *
+	 * @param array $input Input parameters including handler_slug and global_scope.
+	 * @return array Result with configuration status.
+	 */
+	private function executeConfigureFlowStepsGlobalHandler( array $input ): array {
+		$handler_slug        = $input['handler_slug'];
+		$step_type           = $input['step_type'] ?? null;
+		$target_handler_slug = $input['target_handler_slug'] ?? null;
+		$field_map           = $input['field_map'] ?? array();
+		$handler_config      = $input['handler_config'] ?? array();
+		$user_message        = $input['user_message'] ?? null;
+		$validate_only       = ! empty( $input['validate_only'] );
+
+		if ( ! $this->handler_abilities->handlerExists( $handler_slug ) ) {
+			return array(
+				'success' => false,
+				'error'   => "Handler '{$handler_slug}' not found",
+			);
+		}
+
+		if ( ! empty( $target_handler_slug ) && ! $this->handler_abilities->handlerExists( $target_handler_slug ) ) {
+			return array(
+				'success' => false,
+				'error'   => "Target handler '{$target_handler_slug}' not found",
+			);
+		}
+
+		$all_flows = $this->db_flows->get_all_flows();
+
+		if ( empty( $all_flows ) ) {
+			return array(
+				'success' => false,
+				'error'   => 'No flows found in the system',
+			);
+		}
+
+		$matching_flows = array();
+
+		foreach ( $all_flows as $flow ) {
+			$flow_config = $flow['flow_config'] ?? array();
+
+			foreach ( $flow_config as $flow_step_id => $step_config ) {
+				if ( ! empty( $step_type ) ) {
+					$config_step_type = $step_config['step_type'] ?? null;
+					if ( $config_step_type !== $step_type ) {
+						continue;
+					}
+				}
+
+				$config_handler_slug = $step_config['handler_slug'] ?? null;
+				if ( $config_handler_slug === $handler_slug ) {
+					$matching_flows[] = array(
+						'flow'         => $flow,
+						'flow_step_id' => $flow_step_id,
+						'step_config'  => $step_config,
+					);
+				}
+			}
+		}
+
+		if ( empty( $matching_flows ) ) {
+			return array(
+				'success' => false,
+				'error'   => "No flows found using handler '{$handler_slug}'",
+			);
+		}
+
+		if ( $validate_only ) {
+			$would_update = array();
+			foreach ( $matching_flows as $match ) {
+				$flow         = $match['flow'];
+				$flow_step_id = $match['flow_step_id'];
+
+				$would_update[] = array(
+					'flow_id'      => $flow['flow_id'],
+					'flow_name'    => $flow['flow_name'] ?? '',
+					'pipeline_id'  => $flow['pipeline_id'] ?? null,
+					'flow_step_id' => $flow_step_id,
+					'handler_slug' => $target_handler_slug ?? $handler_slug,
+				);
+			}
+
+			return array(
+				'success'      => true,
+				'valid'        => true,
+				'mode'         => 'validate_only',
+				'would_update' => $would_update,
+				'message'      => sprintf( 'Validation passed. Would configure %d step(s) across %d flow(s).', count( $would_update ), count( array_unique( array_column( $would_update, 'flow_id' ) ) ) ),
+			);
+		}
+
+		$updated_details = array();
+		$errors          = array();
+
+		foreach ( $matching_flows as $match ) {
+			$flow         = $match['flow'];
+			$flow_step_id = $match['flow_step_id'];
+			$step_config  = $match['step_config'];
+			$flow_id      = (int) $flow['flow_id'];
+			$flow_name    = $flow['flow_name'] ?? __( 'Unnamed Flow', 'data-machine' );
+
+			$existing_handler_slug   = $step_config['handler_slug'] ?? null;
+			$existing_handler_config = $step_config['handler_config'] ?? array();
+
+			$effective_handler_slug = $target_handler_slug ?? $existing_handler_slug;
+			$is_switching           = ! empty( $target_handler_slug ) && $target_handler_slug !== $existing_handler_slug;
+
+			if ( $is_switching && ! empty( $existing_handler_config ) ) {
+				$mapped_config = $this->mapHandlerConfig( $existing_handler_config, $effective_handler_slug, $field_map );
+			} else {
+				$mapped_config = array();
+			}
+
+			$merged_config = array_merge( $mapped_config, $handler_config );
+
+			if ( empty( $merged_config ) && empty( $user_message ) && ! $is_switching ) {
+				continue;
+			}
+
+			if ( ! empty( $merged_config ) ) {
+				$validation_result = $this->validateHandlerConfig( $effective_handler_slug, $merged_config );
+				if ( true !== $validation_result ) {
+					$errors[] = array(
+						'flow_step_id'   => $flow_step_id,
+						'flow_id'        => $flow_id,
+						'error'          => $validation_result['error'],
+						'unknown_fields' => $validation_result['unknown_fields'],
+					);
+					continue;
+				}
+			}
+
+			$success = $this->updateHandler( $flow_step_id, $effective_handler_slug, $merged_config );
+			if ( ! $success ) {
+				$errors[] = array(
+					'flow_step_id' => $flow_step_id,
+					'flow_id'      => $flow_id,
+					'error'        => 'Failed to update handler',
+				);
+				continue;
+			}
+
+			if ( ! empty( $user_message ) ) {
+				$message_success = $this->updateUserMessage( $flow_step_id, $user_message );
+				if ( ! $message_success ) {
+					$errors[] = array(
+						'flow_step_id' => $flow_step_id,
+						'flow_id'      => $flow_id,
+						'error'        => 'Failed to update user message',
+					);
+					continue;
+				}
+			}
+
+			$detail = array(
+				'flow_id'      => $flow_id,
+				'flow_name'    => $flow_name,
+				'pipeline_id'  => $flow['pipeline_id'] ?? null,
+				'flow_step_id' => $flow_step_id,
+				'handler_slug' => $effective_handler_slug,
+			);
+			if ( $is_switching ) {
+				$detail['switched_from'] = $existing_handler_slug;
+			}
+			$updated_details[] = $detail;
+		}
+
+		$flows_updated  = count( array_unique( array_column( $updated_details, 'flow_id' ) ) );
+		$steps_modified = count( $updated_details );
+
+		if ( 0 === $steps_modified && ! empty( $errors ) ) {
+			return array(
+				'success' => false,
+				'error'   => 'No steps were updated. ' . count( $errors ) . ' error(s) occurred.',
+				'errors'  => $errors,
+			);
+		}
+
+		if ( 0 === $steps_modified ) {
+			return array(
+				'success' => false,
+				'error'   => 'No matching steps found for the specified criteria',
+			);
+		}
+
+		do_action(
+			'datamachine_log',
+			'info',
+			'Global handler flow steps configured via ability',
+			array(
+				'handler_slug'   => $handler_slug,
+				'flows_updated'  => $flows_updated,
+				'steps_modified' => $steps_modified,
+			)
+		);
+
+		$message = sprintf( 'Updated %d step(s) across %d flow(s) using handler %s.', $steps_modified, $flows_updated, $handler_slug );
+
+		$response = array(
+			'success'        => true,
+			'handler_slug'   => $handler_slug,
+			'global_scope'   => true,
+			'flows_updated'  => $flows_updated,
+			'steps_modified' => $steps_modified,
+			'updated_steps'  => $updated_details,
+			'message'        => $message,
 		);
 
 		if ( ! empty( $errors ) ) {
