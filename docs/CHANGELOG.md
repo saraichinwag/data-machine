@@ -2,6 +2,14 @@
 
 All notable changes to Data Machine will be documented in this file. Also viewable at: 
 
+## [0.17.0] - 2026-02-01
+
+### Added
+- add React UI for prompt queue management (#30)
+
+### Fixed
+- initialize queue before WP_Ability check for CLI compatibility (#28)
+
 ## [0.16.3] - 2026-02-01
 
 ### Added
