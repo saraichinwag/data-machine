@@ -307,7 +307,30 @@ function datamachine_register_execution_engine() {
 
 				$payload['data'] = $dataPackets;
 
+				// Check for step success: non-empty packets AND no failure indicators
 				$step_success = ! empty( $dataPackets );
+
+				// Check if any packet explicitly indicates failure (metadata.success === false)
+				if ( $step_success ) {
+					foreach ( $dataPackets as $packet ) {
+						$metadata = $packet['metadata'] ?? array();
+						if ( isset( $metadata['success'] ) && false === $metadata['success'] ) {
+							$step_success = false;
+							do_action(
+								'datamachine_log',
+								'warning',
+								'Step returned failure packet',
+								array(
+									'job_id'        => $job_id,
+									'flow_step_id'  => $flow_step_id,
+									'packet_type'   => $packet['type'] ?? 'unknown',
+									'error_message' => $packet['data']['body'] ?? 'No error message',
+								)
+							);
+							break;
+						}
+					}
+				}
 
 				// Refresh engine data to capture any changes made during step execution (e.g., job_status from skip_item)
 				$refreshed_engine_data = datamachine_get_engine_data( $job_id );
