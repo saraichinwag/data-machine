@@ -168,9 +168,9 @@ class PipelineStepAbilities {
 							'type'        => 'string',
 							'description' => __( 'AI model identifier', 'data-machine' ),
 						),
-						'enabled_tools'    => array(
+						'disabled_tools'    => array(
 							'type'        => 'array',
-							'description' => __( 'Array of enabled tool IDs for this step', 'data-machine' ),
+							'description' => __( 'Array of disabled tool IDs for this step', 'data-machine' ),
 						),
 					),
 				),
@@ -502,9 +502,9 @@ class PipelineStepAbilities {
 		$system_prompt = $input['system_prompt'] ?? null;
 		$provider      = $input['provider'] ?? null;
 		$model         = $input['model'] ?? null;
-		$enabled_tools = $input['enabled_tools'] ?? null;
+		$disabled_tools = $input['disabled_tools'] ?? null;
 
-		if ( null === $system_prompt && null === $provider && null === $model && null === $enabled_tools ) {
+		if ( null === $system_prompt && null === $provider && null === $model && null === $disabled_tools ) {
 			return array(
 				'success' => false,
 				'error'   => 'At least one of system_prompt, provider, model, or enabled_tools is required',
@@ -562,12 +562,12 @@ class PipelineStepAbilities {
 			}
 		}
 
-		if ( null !== $enabled_tools && is_array( $enabled_tools ) ) {
-			$sanitized_tool_ids = array_map( 'sanitize_text_field', $enabled_tools );
+		if ( null !== $disabled_tools && is_array( $disabled_tools ) ) {
+			$sanitized_tool_ids = array_map( 'sanitize_text_field', $disabled_tools );
 			$tools_manager      = new \DataMachine\Engine\AI\Tools\ToolManager();
 
-			$step_config_data['enabled_tools'] = $tools_manager->save_step_tool_selections( $pipeline_step_id, $sanitized_tool_ids );
-			$updated_fields[]                  = 'enabled_tools';
+			$step_config_data['disabled_tools'] = $tools_manager->save_step_tool_selections( $pipeline_step_id, $sanitized_tool_ids );
+			$updated_fields[]                  = 'disabled_tools';
 		}
 
 		$pipeline_config[ $pipeline_step_id ] = array_merge( $existing_config, $step_config_data );
@@ -919,7 +919,7 @@ class PipelineStepAbilities {
 
 			$flow_step_id = apply_filters( 'datamachine_generate_flow_step_id', '', $pipeline_step_id, $flow_id );
 
-			$enabled_tools = $pipeline_config[ $pipeline_step_id ]['enabled_tools'] ?? array();
+			$disabled_tools = $pipeline_config[ $pipeline_step_id ]['disabled_tools'] ?? array();
 
 			$flow_config[ $flow_step_id ] = array(
 				'flow_step_id'     => $flow_step_id,
@@ -928,7 +928,7 @@ class PipelineStepAbilities {
 				'pipeline_id'      => $pipeline_id,
 				'flow_id'          => $flow_id,
 				'execution_order'  => $step['execution_order'] ?? 0,
-				'enabled_tools'    => $enabled_tools,
+				'disabled_tools'    => $disabled_tools,
 				'handler'          => null,
 			);
 		}

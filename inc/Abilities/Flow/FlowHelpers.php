@@ -69,7 +69,7 @@ trait FlowHelpers {
 
 			$flow_step_id = apply_filters( 'datamachine_generate_flow_step_id', '', $pipeline_step_id, $flow_id );
 
-			$enabled_tools = $pipeline_config[ $pipeline_step_id ]['enabled_tools'] ?? array();
+			$disabled_tools = $pipeline_config[ $pipeline_step_id ]['disabled_tools'] ?? array();
 
 			$flow_config[ $flow_step_id ] = array(
 				'flow_step_id'     => $flow_step_id,
@@ -78,7 +78,7 @@ trait FlowHelpers {
 				'pipeline_id'      => $pipeline_id,
 				'flow_id'          => $flow_id,
 				'execution_order'  => $step['execution_order'] ?? 0,
-				'enabled_tools'    => $enabled_tools,
+				'disabled_tools'    => $disabled_tools,
 				'handler'          => null,
 				'prompt_queue'     => array(),
 				'queue_enabled'    => false,
@@ -363,8 +363,8 @@ trait FlowHelpers {
 				if ( ! empty( $source_step['user_message'] ) ) {
 					$new_step_config['user_message'] = $source_step['user_message'];
 				}
-				if ( isset( $source_step['enabled_tools'] ) ) {
-					$new_step_config['enabled_tools'] = $source_step['enabled_tools'];
+				if ( isset( $source_step['disabled_tools'] ) ) {
+					$new_step_config['disabled_tools'] = $source_step['disabled_tools'];
 				}
 			}
 
