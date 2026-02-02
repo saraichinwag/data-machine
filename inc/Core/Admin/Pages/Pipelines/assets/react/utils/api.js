@@ -205,14 +205,14 @@ export const reorderPipelineSteps = async ( pipelineId, steps ) => {
 };
 
 /**
- * Update system prompt for AI step
+ * Update AI step configuration
  *
  * @param {string}        stepId       - Pipeline step ID
  * @param {string}        prompt       - System prompt content
  * @param {string}        provider     - AI provider
  * @param {string}        model        - AI model
- * @param {Array<string>} enabledTools - Enabled AI tools (optional)
- * @param {string}        stepType     - Step type (must be "ai")
+ * @param {Array<string>} enabledTools - Enabled AI tools
+ * @param {string}        stepType     - Step type (currently only 'ai' supported)
  * @param {number}        pipelineId   - Pipeline ID for context
  * @return {Promise<Object>} Updated step data
  */
@@ -225,14 +225,16 @@ export const updateSystemPrompt = async (
 	stepType = 'ai',
 	pipelineId = null
 ) => {
-	return await client.put( `/pipelines/steps/${ stepId }/config`, {
+	const payload = {
 		step_type: stepType,
 		pipeline_id: pipelineId,
 		provider,
 		model,
 		system_prompt: prompt,
 		enabled_tools: enabledTools,
-	} );
+	};
+
+	return await client.put( `/pipelines/steps/${ stepId }/config`, payload );
 };
 
 /**

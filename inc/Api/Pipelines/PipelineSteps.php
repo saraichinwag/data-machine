@@ -168,7 +168,7 @@ class PipelineSteps {
 				'required'          => ! $is_patch,
 				'type'              => 'string',
 				'sanitize_callback' => 'sanitize_text_field',
-				'description'       => __( 'Step type (must be "ai")', 'data-machine' ),
+				'description'       => __( 'Step type (ai)', 'data-machine' ),
 			),
 			'pipeline_id'      => array(
 				'required'          => ! $is_patch,
@@ -465,10 +465,12 @@ class PipelineSteps {
 			$step_type = 'ai';
 		}
 
-		if ( 'ai' !== $step_type ) {
+		// Validate step type supports configuration
+		$configurable_step_types = array( 'ai' );
+		if ( ! in_array( $step_type, $configurable_step_types, true ) ) {
 			return new \WP_Error(
 				'invalid_step_type',
-				__( 'Only AI steps support configuration updates.', 'data-machine' ),
+				__( 'This step type does not support configuration updates.', 'data-machine' ),
 				array( 'status' => 400 )
 			);
 		}
@@ -485,63 +487,76 @@ class PipelineSteps {
 		$pipeline_config = $pipeline['pipeline_config'] ?? array();
 		$existing_config = $pipeline_config[ $pipeline_step_id ] ?? array();
 
-		// Collect AI configuration parameters (only when provided)
-		$has_provider      = $request->has_param( 'provider' );
-		$has_model         = $request->has_param( 'model' );
-		$has_system_prompt = $request->has_param( 'system_prompt' );
-		$has_enabled_tools = $request->has_param( 'enabled_tools' );
-		$has_api_key       = $request->has_param( 'ai_api_key' );
-		$api_key_saved     = false;
-
-		$effective_provider = $has_provider
-			? sanitize_text_field( $request->get_param( 'provider' ) )
-			: ( $existing_config['provider'] ?? '' );
-		$effective_model    = $has_model
-			? sanitize_text_field( $request->get_param( 'model' ) )
-			: ( $existing_config['model'] ?? '' );
-		$system_prompt      = $has_system_prompt
-			? sanitize_textarea_field( $request->get_param( 'system_prompt' ) )
-			: null;
-
-		// Build step configuration data
+		// Build step configuration data for AI steps
 		$step_config_data = array();
+		$api_key_saved    = false;
 
-		if ( $has_provider ) {
-			$step_config_data['provider'] = $effective_provider;
-		}
+		{
+			// Handle AI step configuration
+			$has_provider      = $request->has_param( 'provider' );
+			$has_model         = $request->has_param( 'model' );
+			$has_system_prompt = $request->has_param( 'system_prompt' );
+			$has_enabled_tools = $request->has_param( 'enabled_tools' );
+			$has_api_key       = $request->has_param( 'ai_api_key' );
 
-		if ( $has_model ) {
-			$step_config_data['model'] = $effective_model;
+			$effective_provider = $has_provider
+				? sanitize_text_field( $request->get_param( 'provider' ) )
+				: ( $existing_config['provider'] ?? '' );
+			$effective_model    = $has_model
+				? sanitize_text_field( $request->get_param( 'model' ) )
+				: ( $existing_config['model'] ?? '' );
+			$system_prompt      = $has_system_prompt
+				? sanitize_textarea_field( $request->get_param( 'system_prompt' ) )
+				: null;
 
-			$provider_for_model = $has_provider ? $effective_provider : ( $existing_config['provider'] ?? '' );
+			if ( $has_provider ) {
+				$step_config_data['provider'] = $effective_provider;
+			}
 
-			if ( ! empty( $provider_for_model ) && ! empty( $effective_model ) ) {
-				if ( ! isset( $step_config_data['providers'] ) ) {
-					$step_config_data['providers'] = array();
+			if ( $has_model ) {
+				$step_config_data['model'] = $effective_model;
+
+				$provider_for_model = $has_provider ? $effective_provider : ( $existing_config['provider'] ?? '' );
+
+				if ( ! empty( $provider_for_model ) && ! empty( $effective_model ) ) {
+					if ( ! isset( $step_config_data['providers'] ) ) {
+						$step_config_data['providers'] = array();
+					}
+					if ( ! isset( $step_config_data['providers'][ $provider_for_model ] ) ) {
+						$step_config_data['providers'][ $provider_for_model ] = array();
+					}
+					$step_config_data['providers'][ $provider_for_model ]['model'] = $effective_model;
 				}
-				if ( ! isset( $step_config_data['providers'][ $provider_for_model ] ) ) {
-					$step_config_data['providers'][ $provider_for_model ] = array();
+			}
+
+			if ( $has_system_prompt ) {
+				$step_config_data['system_prompt'] = $system_prompt;
+			}
+
+			if ( $has_enabled_tools ) {
+				$enabled_tools_raw  = $request->get_param( 'enabled_tools' );
+				$sanitized_tool_ids = array();
+				if ( is_array( $enabled_tools_raw ) ) {
+					$sanitized_tool_ids = array_map( 'sanitize_text_field', $enabled_tools_raw );
 				}
-				$step_config_data['providers'][ $provider_for_model ]['model'] = $effective_model;
+
+				$tools_manager                     = new \DataMachine\Engine\AI\Tools\ToolManager();
+				$step_config_data['enabled_tools'] = $tools_manager->save_step_tool_selections( $pipeline_step_id, $sanitized_tool_ids );
+			}
+
+			if ( empty( $step_config_data ) && ! $has_api_key ) {
+				return new \WP_Error(
+					'no_config_values',
+					__( 'No configuration values were provided.', 'data-machine' ),
+					array( 'status' => 400 )
+				);
 			}
 		}
 
-		if ( $has_system_prompt ) {
-			$step_config_data['system_prompt'] = $system_prompt;
-		}
+		// Check for API key (AI steps only)
+		$has_api_key = $request->has_param( 'ai_api_key' );
 
-		if ( $has_enabled_tools ) {
-			$enabled_tools_raw  = $request->get_param( 'enabled_tools' );
-			$sanitized_tool_ids = array();
-			if ( is_array( $enabled_tools_raw ) ) {
-				$sanitized_tool_ids = array_map( 'sanitize_text_field', $enabled_tools_raw );
-			}
-
-			$tools_manager                     = new \DataMachine\Engine\AI\Tools\ToolManager();
-			$step_config_data['enabled_tools'] = $tools_manager->save_step_tool_selections( $pipeline_step_id, $sanitized_tool_ids );
-		}
-
-		if ( empty( $step_config_data ) && ! $has_api_key ) {
+		if ( 'ai' === $step_type && empty( $step_config_data ) && ! $has_api_key ) {
 			return new \WP_Error(
 				'no_config_values',
 				__( 'No configuration values were provided.', 'data-machine' ),

@@ -1,7 +1,8 @@
 /**
  * Configure Step Modal Component
  *
- * Modal for configuring AI provider and model for AI steps.
+ * Modal for configuring AI step settings: provider, model, tools, system prompt.
+ * Agent Ping configuration is handled at flow level via handler config.
  */
 
 /**
@@ -23,13 +24,83 @@ import ProviderModelSelector from '@shared/components/ai/ProviderModelSelector';
 import AIToolsSelector from './configure-step/AIToolsSelector';
 
 /**
+ * AI Step Configuration Content
+ */
+function AIStepConfig( {
+	formState,
+	selectedTools,
+	setSelectedTools,
+	isLoadingTools,
+	shouldApplyDefaults,
+} ) {
+	return (
+		<>
+			<ProviderModelSelector
+				provider={ formState.data.provider }
+				model={ formState.data.model }
+				onProviderChange={ ( value ) =>
+					formState.updateField( 'provider', value )
+				}
+				onModelChange={ ( value ) =>
+					formState.updateField( 'model', value )
+				}
+				disabled={ isLoadingTools }
+				applyDefaults={ shouldApplyDefaults }
+				providerHelp={ __(
+					'Choose the AI provider for this step.',
+					'data-machine'
+				) }
+				modelHelp={ __(
+					'Choose the AI model to use.',
+					'data-machine'
+				) }
+			/>
+
+			<AIToolsSelector
+				selectedTools={ selectedTools }
+				onSelectionChange={ setSelectedTools }
+			/>
+
+			<div className="datamachine-form-field-wrapper">
+				<TextareaControl
+					label={ __( 'System Prompt', 'data-machine' ) }
+					value={ formState.data.systemPrompt }
+					onChange={ ( value ) =>
+						formState.updateField( 'systemPrompt', value )
+					}
+					placeholder={ __(
+						'Enter system prompt for AI processing…',
+						'data-machine'
+					) }
+					rows={ 8 }
+					help={ __(
+						'Optional: Provide instructions for the AI to follow during processing.',
+						'data-machine'
+					) }
+				/>
+			</div>
+
+			<div className="datamachine-modal-info-box datamachine-modal-info-box--note">
+				<p>
+					<strong>{ __( 'Note:', 'data-machine' ) }</strong>{ ' ' }
+					{ __(
+						'The system prompt is shared across all flows using this pipeline. To add flow-specific instructions, use the user message field in the flow step card.',
+						'data-machine'
+					) }
+				</p>
+			</div>
+		</>
+	);
+}
+
+/**
  * Configure Step Modal Component
  *
  * @param {Object}   props                - Component props
  * @param {Function} props.onClose        - Close handler
  * @param {number}   props.pipelineId     - Pipeline ID
  * @param {string}   props.pipelineStepId - Pipeline step ID
- * @param {string}   props.stepType       - Step type
+ * @param {string}   props.stepType       - Step type (currently only 'ai' supported)
  * @param {Object}   props.currentConfig  - Current configuration
  * @param {Function} props.onSuccess      - Success callback
  * @return {React.ReactElement|null} Configure step modal
@@ -64,12 +135,17 @@ export default function ConfigureStepModal( {
 		]
 	);
 
-	const formState = useFormState( {
-		initialData: {
+	// Build initial data for AI step
+	const initialData = useMemo( () => {
+		return {
 			provider: currentConfig?.provider || '',
 			model: currentConfig?.model || '',
 			systemPrompt: currentConfig?.system_prompt || '',
-		},
+		};
+	}, [ currentConfig ] );
+
+	const formState = useFormState( {
+		initialData,
 		validate: ( data ) => {
 			if ( ! data.provider ) {
 				return __( 'Please select an AI provider', 'data-machine' );
@@ -139,6 +215,12 @@ export default function ConfigureStepModal( {
 	// Determine if defaults should be applied (only for new/unconfigured steps)
 	const shouldApplyDefaults = ! currentConfig?.provider;
 
+	// Determine if save button should be disabled
+	const isSaveDisabled =
+		formState.isSubmitting ||
+		! formState.data.provider ||
+		! formState.data.model;
+
 	return (
 		<Modal
 			title={ __( 'Configure AI Step', 'data-machine' ) }
@@ -152,60 +234,13 @@ export default function ConfigureStepModal( {
 					</div>
 				) }
 
-				<ProviderModelSelector
-					provider={ formState.data.provider }
-					model={ formState.data.model }
-					onProviderChange={ ( value ) =>
-						formState.updateField( 'provider', value )
-					}
-					onModelChange={ ( value ) =>
-						formState.updateField( 'model', value )
-					}
-					disabled={ isLoadingTools }
-					applyDefaults={ shouldApplyDefaults }
-					providerHelp={ __(
-						'Choose the AI provider for this step.',
-						'data-machine'
-					) }
-					modelHelp={ __(
-						'Choose the AI model to use.',
-						'data-machine'
-					) }
-				/>
-
-				<AIToolsSelector
+				<AIStepConfig
+					formState={ formState }
 					selectedTools={ selectedTools }
-					onSelectionChange={ setSelectedTools }
+					setSelectedTools={ setSelectedTools }
+					isLoadingTools={ isLoadingTools }
+					shouldApplyDefaults={ shouldApplyDefaults }
 				/>
-
-				<div className="datamachine-form-field-wrapper">
-					<TextareaControl
-						label={ __( 'System Prompt', 'data-machine' ) }
-						value={ formState.data.systemPrompt }
-						onChange={ ( value ) =>
-							formState.updateField( 'systemPrompt', value )
-						}
-						placeholder={ __(
-							'Enter system prompt for AI processing…',
-							'data-machine'
-						) }
-						rows={ 8 }
-						help={ __(
-							'Optional: Provide instructions for the AI to follow during processing.',
-							'data-machine'
-						) }
-					/>
-				</div>
-
-				<div className="datamachine-modal-info-box datamachine-modal-info-box--note">
-					<p>
-						<strong>{ __( 'Note:', 'data-machine' ) }</strong>{ ' ' }
-						{ __(
-							'The system prompt is shared across all flows using this pipeline. To add flow-specific instructions, use the user message field in the flow step card.',
-							'data-machine'
-						) }
-					</p>
-				</div>
 
 				<div className="datamachine-modal-actions">
 					<Button
@@ -219,11 +254,7 @@ export default function ConfigureStepModal( {
 					<Button
 						variant="primary"
 						onClick={ formState.submit }
-						disabled={
-							formState.isSubmitting ||
-							! formState.data.provider ||
-							! formState.data.model
-						}
+						disabled={ isSaveDisabled }
 						isBusy={ formState.isSubmitting }
 					>
 						{ formState.isSubmitting
