@@ -7,12 +7,15 @@
 /**
  * WordPress dependencies
  */
-import { Button, Card, CardBody } from '@wordpress/components';
+import { useState, useEffect, useCallback, useRef } from '@wordpress/element';
+import { Button, Card, CardBody, TextareaControl, Notice } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 /**
  * Internal dependencies
  */
 import FlowStepHandler from './FlowStepHandler';
+import { useUpdateQueueItem } from '../../queries/queue';
+import { AUTO_SAVE_DELAY } from '../../utils/constants';
 import { useStepTypes } from '../../queries/config';
 
 /**
@@ -49,7 +52,149 @@ export default function FlowStepCard( {
 		? pipelineConfig[ pipelineStep.pipeline_step_id ]
 		: null;
 
+	// Get the first queue item's prompt (if exists)
 	const queueCount = promptQueue.length;
+	const queueHasItems = queueCount > 0;
+	const firstQueuePrompt = queueHasItems ? promptQueue[ 0 ].prompt : '';
+
+	// Local state for the textarea - displays queue[0] if available
+	const [ localUserMessage, setLocalUserMessage ] = useState(
+		firstQueuePrompt || flowStepConfig.user_message || ''
+	);
+	const [ isSaving, setIsSaving ] = useState( false );
+	const [ error, setError ] = useState( null );
+	const saveTimeout = useRef( null );
+	const updateQueueItemMutation = useUpdateQueueItem();
+
+	/**
+	 * Sync local user message with queue/config changes
+	 */
+	useEffect( () => {
+		// Priority: queue[0] > user_message
+		const newValue = firstQueuePrompt || flowStepConfig.user_message || '';
+		setLocalUserMessage( newValue );
+	}, [ firstQueuePrompt, flowStepConfig.user_message ] );
+
+	/**
+	 * Save user message to queue (index 0)
+	 */
+	const saveToQueue = useCallback(
+		async ( message ) => {
+			if ( ! isAiStep ) {
+				return;
+			}
+
+			// Compare to current queue value
+			const currentMessage = firstQueuePrompt || '';
+			if ( message === currentMessage ) {
+				return;
+			}
+
+			setIsSaving( true );
+			setError( null );
+
+			try {
+				const response = await updateQueueItemMutation.mutateAsync( {
+					flowId,
+					index: 0,
+					prompt: message,
+				} );
+
+				if ( ! response?.success ) {
+					setError(
+						response?.message ||
+							__( 'Failed to update prompt queue', 'data-machine' )
+					);
+					setLocalUserMessage( currentMessage );
+				}
+			} catch ( err ) {
+				// eslint-disable-next-line no-console
+				console.error( 'Queue update error:', err );
+				setError(
+					err.message || __( 'An error occurred', 'data-machine' )
+				);
+				setLocalUserMessage( currentMessage );
+			} finally {
+				setIsSaving( false );
+			}
+		},
+		[
+			flowId,
+			firstQueuePrompt,
+			isAiStep,
+			updateQueueItemMutation,
+		]
+	);
+
+	/**
+	 * Handle user message change with debouncing
+	 */
+	const handleUserMessageChange = useCallback(
+		( value ) => {
+			setLocalUserMessage( value );
+
+			// Clear existing timeout
+			if ( saveTimeout.current ) {
+				clearTimeout( saveTimeout.current );
+			}
+
+			// Set new timeout for debounced save
+			saveTimeout.current = setTimeout( () => {
+				saveToQueue( value );
+			}, AUTO_SAVE_DELAY );
+		},
+		[ saveToQueue ]
+	);
+
+	/**
+	 * Cleanup timeout on unmount
+	 */
+	useEffect( () => {
+		return () => {
+			if ( saveTimeout.current ) {
+				clearTimeout( saveTimeout.current );
+			}
+		};
+	}, [] );
+
+	/**
+	 * Build the label with queue indicator
+	 */
+	const getFieldLabel = () => {
+		if ( queueHasItems ) {
+			return (
+				<span className="datamachine-user-message-label">
+					{ __( 'User Message', 'data-machine' ) }
+					<span className="datamachine-queue-indicator">
+						{ ' ' }
+						<span className="datamachine-queue-badge">
+							{ __( 'Next in queue', 'data-machine' ) }
+						</span>
+					</span>
+				</span>
+			);
+		}
+		return __( 'User Message', 'data-machine' );
+	};
+
+	/**
+	 * Build help text
+	 */
+	const getHelpText = () => {
+		if ( isSaving ) {
+			return __( 'Saving…', 'data-machine' );
+		}
+		if ( queueHasItems ) {
+			return __(
+				'Editing updates the first item in the prompt queue.',
+				'data-machine'
+			);
+		}
+		return __(
+			'Enter the prompt for the AI step. Use Manage Queue to add multiple prompts.',
+			'data-machine'
+		);
+	};
 
 	return (
 		<Card
@@ -57,6 +202,16 @@ export default function FlowStepCard( {
 			size="small"
 		>
 			<CardBody>
+				{ error && (
+					<Notice
+						status="error"
+						isDismissible
+						onRemove={ () => setError( null ) }
+					>
+						{ error }
+					</Notice>
+				) }
+
 				<div className="datamachine-step-content">
 					<div className="datamachine-step-header-row">
 						<strong>
@@ -78,6 +233,20 @@ export default function FlowStepCard( {
 								</strong>{ ' ' }
 								{ aiConfig.model || 'Not configured' }
 							</div>
+
+							{ /* Prompt Field - shows/edits queue[0] */ }
+							<TextareaControl
+								label={ getFieldLabel() }
+								value={ localUserMessage }
+								onChange={ handleUserMessageChange }
+								placeholder={ __(
+									'Enter user message for AI processing…',
+									'data-machine'
+								) }
+								rows={ 4 }
+								help={ getHelpText() }
+								className={ queueHasItems ? 'datamachine-queue-linked' : '' }
+							/>
 
 							{ /* Queue Management Button */ }
 							<div className="datamachine-queue-actions">
