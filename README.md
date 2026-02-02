@@ -1,32 +1,15 @@
+# Data Machine
+
 Automate WordPress content workflows with AI — fetch from anywhere, process with AI, publish everywhere.
 
 ## What It Does
 
 Data Machine turns WordPress into an AI-powered content automation hub:
 
-- **Build visual pipelines** that fetch content from any source, process it with AI, and publish or update automatically
-- **Chat with an AI agent** to configure and run workflows conversationally
-- **Schedule recurring automation** or trigger workflows on-demand
-
-No coding required. Connect your sources, configure AI processing, set your schedule, and let it run.
-
-## Example Workflows
-
-**Content Syndication**
-RSS feed → AI rewrites for your voice → Publish to WordPress
-
-**Social Media Automation**
-WordPress posts → AI summarizes → Post to Twitter/Threads/Bluesky
-
-**Content Aggregation**
-Reddit/Google Sheets → AI filters and enhances → Create draft posts
-
-**Site Maintenance**
-Local posts → AI improves SEO/readability → Update existing content
-
-## Quick Links
-
-[Documentation](docs/) · [Changelog](docs/CHANGELOG.md) · [REST API](docs/api/)
+- **Visual pipeline builder** — Create multi-step workflows without code
+- **AI processing** — Enhance, filter, and transform content with any provider
+- **Scheduled execution** — Run workflows on intervals or on-demand
+- **Agent orchestration** — AI agents can schedule themselves via prompt queues
 
 ## How It Works
 
@@ -34,80 +17,71 @@ Local posts → AI improves SEO/readability → Update existing content
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
 │    FETCH    │ ──▶ │     AI      │ ──▶ │   PUBLISH   │
 │  RSS, API,  │     │  Enhance,   │     │  WordPress, │
-│  Sheets...  │     │  Filter,    │     │  Social,    │
-│             │     │  Transform  │     │  Sheets...  │
+│  Sheets...  │     │  Transform  │     │  Social...  │
 └─────────────┘     └─────────────┘     └─────────────┘
 ```
 
-Pipelines define your workflow template. Flows schedule when they run. Jobs track each execution.
+**Pipelines** define your workflow template. **Flows** schedule when they run. **Jobs** track each execution.
 
-## Key Features
+## Example Workflows
 
-- **Visual Pipeline Builder** — React admin UI for creating multi-step workflows
-- **Chat Agent** — Conversational workflow configuration via integrated sidebar
-- **Multi-Provider AI** — OpenAI, Anthropic, Google, Grok, OpenRouter
-- **Deduplication** — Never process the same item twice
-- **Scheduled Execution** — Recurring intervals via Action Scheduler or on-demand
-- **Problem Flow Monitoring** — Automatic flagging of failing workflows
-
-## Handlers & Tools
-
-**Fetch**: RSS, Reddit, Google Sheets, WordPress API, Files, WordPress Media
-
-**Publish**: Twitter, Threads, Bluesky, Facebook, WordPress, Google Sheets
-
-**Update**: WordPress posts with AI enhancement
-
-**AI Tools**: Google Search, Local Search, Web Fetch, WordPress Post Reader
+| Workflow | Steps |
+|----------|-------|
+| Content Syndication | RSS → AI rewrites → Publish to WordPress |
+| Social Automation | WordPress posts → AI summarizes → Post to Twitter |
+| Content Aggregation | Reddit/Sheets → AI filters → Create drafts |
+| Site Maintenance | Local posts → AI improves SEO → Update content |
 
 ## For AI Agents
 
-Data Machine can orchestrate autonomous AI agents, not just content workflows.
+Data Machine is also a **self-scheduling execution layer** for autonomous AI agents.
 
-**The key insight:** An AI agent can use Data Machine to schedule prompts *to itself*. The Agent Ping step triggers external agents during pipeline completion, enabling a continuous execution loop:
+### Core Concepts
+
+1. **Flows run on schedules** — Daily, hourly, or cron expressions
+2. **Prompts are queueable** — Both AI and Agent Ping steps pop from queues
+3. **Agent Ping triggers external agents** — Webhook fires after pipeline completion
+
+### The Pattern
 
 ```
-Agent queues task → Pipeline runs → Agent Ping fires → 
-Agent processes result → Agent queues next task → Loop continues
+Agent queues task → Flow runs → Agent Ping fires → 
+Agent executes → Agent queues next task → Loop continues
 ```
 
-**Why this matters:**
+The prompt queue is your **persistent project memory**. Multi-phase work survives across sessions. You're not waiting to be called — you schedule yourself.
 
-- **Cross-session continuity** — The prompt queue persists your project plan across sessions. No more losing context when your conversation ends.
-- **Multi-week autonomous projects** — Break complex work into phases. Each phase completes, pings you, and you queue the next.
-- **Persistent project memory** — Queue items store context that survives beyond any single execution.
-- **Self-scheduling execution** — You're not waiting to be called. You schedule yourself.
+See [docs/SKILL.md](docs/SKILL.md) for integration patterns.
 
-**The paradigm shift:** "I'm not automating content — I'm automating myself."
+## Handlers
 
-Traditional automation treats AI as a tool in a pipeline. Agent self-orchestration inverts this: the agent *defines* the pipeline, *queues* the work, and *receives* the callback. Data Machine becomes your execution layer for autonomous, phased, long-running projects.
+| Type | Options |
+|------|---------|
+| **Fetch** | RSS, Reddit, Google Sheets, WordPress API, Files, Media |
+| **Publish** | WordPress, Twitter, Threads, Bluesky, Facebook, Sheets |
+| **Update** | WordPress posts with AI enhancement |
 
-See [SKILL.md](docs/SKILL.md) for agent integration patterns.
+## AI Providers
+
+OpenAI, Anthropic, Google, Grok, OpenRouter — configure per-site or per-pipeline.
 
 ## Requirements
 
-- WordPress 6.9+ (Abilities API dependency)
+- WordPress 6.9+ (Abilities API)
 - PHP 8.2+
-- Composer for dependency management
-- Action Scheduler for scheduled execution
-
-## Architecture
-
-Data Machine uses an abilities-first architecture built on the WordPress 6.9 Abilities API. All operations flow through a single REST API at `/wp-json/datamachine/v1/`.
-
-The engine processes exactly one item per job execution cycle (Single Item Execution Model), ensuring failures are isolated and never cascade.
-
-Extensions integrate via WordPress filters for handlers, tools, authentication providers, and step types.
-
-See [CLAUDE.md](CLAUDE.md) for technical contributor documentation.
+- Action Scheduler
 
 ## Development
 
-- Build: `homeboy build data-machine` — runs tests, lints, builds frontend, creates ZIP
-- Test: `homeboy test data-machine` — runs PHPUnit via homeboy's WordPress environment
-- Lint: `homeboy lint data-machine` — PHP CodeSniffer with WordPress standards
+```bash
+homeboy build data-machine  # Test, lint, build, package
+homeboy test data-machine   # PHPUnit tests
+homeboy lint data-machine   # PHPCS with WordPress standards
+```
 
-## Resources
+## Documentation
 
-- [CLAUDE.md](CLAUDE.md) — Technical reference for contributors
-- [/docs/](docs/) — User documentation
+- [docs/](docs/) — User documentation
+- [docs/SKILL.md](docs/SKILL.md) — Agent integration patterns
+- [AGENTS.md](AGENTS.md) — Technical reference for contributors
+- [docs/CHANGELOG.md](docs/CHANGELOG.md) — Version history

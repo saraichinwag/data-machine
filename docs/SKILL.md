@@ -27,6 +27,51 @@ This enables:
 - **Autonomous loops**: Complete one task, queue the next, repeat indefinitely
 - **Cross-session continuity**: Pick up exactly where you left off
 
+### Multiple Purpose-Specific Flows
+
+Don't try to do everything in one flow. Create separate flows for separate concerns:
+
+```
+Flow: Content Ideation (daily)
+  → Agent Ping: "Review analytics, queue new topics"
+
+Flow: Content Generation (queue-driven)
+  → AI Step → Publish → Agent Ping: "Add images to new post"
+
+Flow: Pinterest Review (weekly)
+  → Agent Ping: "Analyze performance, graduate top pins"
+
+Flow: Coding Tasks (queue-driven)
+  → Agent Ping: (pops specific task from queue)
+```
+
+Each flow has its own **schedule** and its own **queue**.
+
+### Flow Scheduling
+
+Configure `scheduling_config` on the flow:
+
+| Interval | Behavior |
+|----------|----------|
+| `manual` | Only runs when triggered |
+| `daily` | Runs once per day |
+| `hourly` | Runs once per hour |
+| `{"cron": "..."}` | Cron expression |
+
+### Agent Ping Prompts Are Queueable
+
+Both AI and Agent Ping steps use `QueueableTrait`. If the configured prompt is empty, the step pops from the flow's queue.
+
+This means Agent Ping can deliver **different instructions each run** — not the same static prompt. Queue varied tasks:
+
+```bash
+wp datamachine flows queue add 30 "Review PR feedback and address comments"
+wp datamachine flows queue add 30 "Add unit tests for TaxonomyHandler"
+wp datamachine flows queue add 30 "Refactor to use dependency injection"
+```
+
+Each flow run pops and delivers the next unique instruction.
+
 ## Architecture
 
 ### Execution Model
