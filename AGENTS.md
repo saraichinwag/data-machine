@@ -53,6 +53,46 @@ Agent guidance (for automated editors)
 - Do not modify source code when aligning documentation unless explicitly authorized.
 - Do not create new top-level documentation directories. Creating or updating `.md` files is allowed only within existing directories.
 
+Agent orchestration patterns
+
+Data Machine functions as a **reminder system + task manager + workflow executor** for AI agents.
+
+### Three key concepts
+
+1. **Flows operate on schedules** — Configure `scheduling_config` with interval (manual, daily, hourly) or cron expressions. Agents can set up "ping me at X time to do Y."
+
+2. **Agent Ping prompts are queueable** — `AgentPingStep` uses `QueueableTrait`. If the configured prompt is empty, it pops from the flow's queue. This allows varied task instructions per execution, not the same ping every time.
+
+3. **Multiple purpose-specific flows** — Create separate flows for separate concerns, each with its own schedule and queue:
+   - Content generation (queue-driven, AI → Publish → Agent Ping)
+   - Content ideation (daily ping to review and queue topics)
+   - Maintenance tasks (weekly ping for cleanup/optimization)
+   - Coding tasks (queue-driven with specific instructions per run)
+
+### Chaining pattern
+
+When an agent receives a ping, it should:
+1. Execute the immediate task
+2. Queue the next logical task (if continuation needed)
+3. Let the cycle continue
+
+The queue becomes the agent's persistent project memory — multi-phase work is tracked in the queue, not held in the agent's context.
+
+### AI Decides taxonomy
+
+The `TaxonomyHandler` supports automatic taxonomy assignment during publish:
+
+| Selection | Behavior |
+|-----------|----------|
+| `skip` | Don't assign this taxonomy |
+| `ai_decides` | AI provides values via tool parameters |
+| `<term_id\|name\|slug>` | Pre-select specific term |
+
+When `ai_decides` is set, `getTaxonomyToolParameters()` adds the taxonomy as an AI tool parameter. The AI provides term names, and the handler assigns them (creating terms if needed).
+
+- Hierarchical taxonomies (category): expects single string
+- Non-hierarchical (tags): expects array of strings
+
 Design principles
 
 - **Agent Agnosticism**: Data Machine is agnostic to which agent framework handles triggered prompts. Agent Ping sends webhooks with context — it does not hardcode assumptions about OpenClaw, LangChain, or any specific agent runtime. Whatever listens on the webhook URL handles the prompt. This keeps the plugin portable and framework-independent.
