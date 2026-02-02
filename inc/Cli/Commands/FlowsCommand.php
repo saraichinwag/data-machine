@@ -91,6 +91,9 @@ class FlowsCommand extends BaseCommand {
 	 * default: manual
 	 * ---
 	 *
+	 * [--step=<flow_step_id>]
+	 * : Flow step ID for queue subcommands (queue add/list/remove/clear/update/move).
+	 *
 	 * [--dry-run]
 	 * : Validate without creating (create subcommand).
 	 *
