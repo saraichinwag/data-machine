@@ -169,6 +169,9 @@ class FlowsCommand extends BaseCommand {
 	 *     # Update a prompt at specific index
 	 *     wp datamachine flows queue update 42 0 "Revised task instructions"
 	 *
+	 *     # Move a prompt from one position to another
+	 *     wp datamachine flows queue move 42 3 0
+	 *
 	 *     # Clear all prompts from queue
 	 *     wp datamachine flows queue clear 42
 	 */
@@ -457,7 +460,7 @@ class FlowsCommand extends BaseCommand {
 	 */
 	private function handleQueue( array $args, array $assoc_args ): void {
 		if ( empty( $args ) ) {
-			WP_CLI::error( 'Usage: wp datamachine flows queue <add|list|clear|remove|update> <flow_id> [prompt|index]' );
+			WP_CLI::error( 'Usage: wp datamachine flows queue <add|list|clear|remove|update|move> <flow_id> [args]' );
 			return;
 		}
 
@@ -479,8 +482,11 @@ class FlowsCommand extends BaseCommand {
 			case 'update':
 				$this->queueUpdate( array_slice( $args, 1 ), $assoc_args );
 				break;
+			case 'move':
+				$this->queueMove( array_slice( $args, 1 ), $assoc_args );
+				break;
 			default:
-				WP_CLI::error( "Unknown queue action: {$action}. Use: add, list, clear, remove, update" );
+				WP_CLI::error( "Unknown queue action: {$action}. Use: add, list, clear, remove, update, move" );
 		}
 	}
 
@@ -701,5 +707,48 @@ class FlowsCommand extends BaseCommand {
 		}
 
 		WP_CLI::success( $result['message'] ?? 'Prompt updated in queue.' );
+	}
+
+	/**
+	 * Move a prompt from one position to another in the queue.
+	 *
+	 * @param array $args       Positional arguments (flow_id, from_index, to_index).
+	 * @param array $assoc_args Associative arguments.
+	 */
+	private function queueMove( array $args, array $assoc_args ): void {
+		if ( count( $args ) < 3 ) {
+			WP_CLI::error( 'Usage: wp datamachine flows queue move <flow_id> <from_index> <to_index>' );
+			return;
+		}
+
+		$flow_id    = (int) $args[0];
+		$from_index = (int) $args[1];
+		$to_index   = (int) $args[2];
+
+		if ( $flow_id <= 0 ) {
+			WP_CLI::error( 'flow_id must be a positive integer' );
+			return;
+		}
+
+		if ( $from_index < 0 || $to_index < 0 ) {
+			WP_CLI::error( 'indices must be non-negative integers' );
+			return;
+		}
+
+		$ability = new \DataMachine\Abilities\FlowAbilities();
+		$result  = $ability->executeQueueMove(
+			array(
+				'flow_id'    => $flow_id,
+				'from_index' => $from_index,
+				'to_index'   => $to_index,
+			)
+		);
+
+		if ( ! $result['success'] ) {
+			WP_CLI::error( $result['error'] ?? 'Failed to move item in queue' );
+			return;
+		}
+
+		WP_CLI::success( $result['message'] ?? 'Item moved in queue.' );
 	}
 }

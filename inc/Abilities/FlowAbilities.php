@@ -187,4 +187,24 @@ class FlowAbilities {
 	public function executeQueueRemove( array $input ): array {
 		return $this->queue->executeQueueRemove( $input );
 	}
+
+	/**
+	 * Execute queue-update ability.
+	 *
+	 * @param array $input Input parameters (flow_id, index, prompt).
+	 * @return array Result with update info.
+	 */
+	public function executeQueueUpdate( array $input ): array {
+		return $this->queue->executeQueueUpdate( $input );
+	}
+
+	/**
+	 * Execute queue-move ability.
+	 *
+	 * @param array $input Input parameters (flow_id, from_index, to_index).
+	 * @return array Result with move info.
+	 */
+	public function executeQueueMove( array $input ): array {
+		return $this->queue->executeQueueMove( $input );
+	}
 }
