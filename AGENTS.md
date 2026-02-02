@@ -61,7 +61,7 @@ Data Machine functions as a **reminder system + task manager + workflow executor
 
 1. **Flows operate on schedules** — Configure `scheduling_config` with interval (manual, daily, hourly) or cron expressions. Agents can set up "ping me at X time to do Y."
 
-2. **Agent Ping prompts are queueable** — `AgentPingStep` uses `QueueableTrait`. If the configured prompt is empty, it pops from the flow's queue. This allows varied task instructions per execution, not the same ping every time.
+2. **Step-level prompt queues** — Both AI and Agent Ping steps use `QueueableTrait`. Each step can have its own queue. If `queue_enabled` is true and the configured prompt is empty, the step pops from its queue. This allows varied task instructions per execution, not the same ping every time.
 
 3. **Multiple purpose-specific flows** — Create separate flows for separate concerns, each with its own schedule and queue:
    - Content generation (queue-driven, AI → Publish → Agent Ping)

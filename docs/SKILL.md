@@ -45,7 +45,7 @@ Flow: Coding Tasks (queue-driven)
   → Agent Ping: (pops specific task from queue)
 ```
 
-Each flow has its own **schedule** and its own **queue**.
+Each flow has its own **schedule**, and each step within a flow can have its own **queue**.
 
 ### Flow Scheduling
 
@@ -58,19 +58,22 @@ Configure `scheduling_config` on the flow:
 | `hourly` | Runs once per hour |
 | `{"cron": "..."}` | Cron expression |
 
-### Agent Ping Prompts Are Queueable
+### Step-Level Prompt Queues
 
-Both AI and Agent Ping steps use `QueueableTrait`. If the configured prompt is empty, the step pops from the flow's queue.
+Both AI and Agent Ping steps use `QueueableTrait`. Each step can have its own queue, enabling different prompt sequences for different steps within the same flow.
 
-This means Agent Ping can deliver **different instructions each run** — not the same static prompt. Queue varied tasks:
+If `queue_enabled` is true and the step's configured prompt is empty, the step pops from its queue.
+
+This means each step can deliver **different instructions each run** — not the same static prompt. Queue varied tasks per step:
 
 ```bash
-wp datamachine flows queue add 30 "Review PR feedback and address comments"
-wp datamachine flows queue add 30 "Add unit tests for TaxonomyHandler"
-wp datamachine flows queue add 30 "Refactor to use dependency injection"
+# Queue tasks for a specific step (flow_id + flow_step_id)
+wp datamachine flows queue add 30 --step=ai_step_42_30 "Review PR feedback and address comments"
+wp datamachine flows queue add 30 --step=ai_step_42_30 "Add unit tests for TaxonomyHandler"
+wp datamachine flows queue add 30 --step=ai_step_42_30 "Refactor to use dependency injection"
 ```
 
-Each flow run pops and delivers the next unique instruction.
+Each flow run pops from the appropriate step's queue and delivers the next unique instruction.
 
 ## Architecture
 
@@ -102,7 +105,7 @@ Three levels, applied in order:
 All service logic uses WordPress Abilities API. Key abilities include:
 - `datamachine/create-flow`, `datamachine/update-flow`, `datamachine/delete-flow`
 - `datamachine/create-pipeline`, `datamachine/update-pipeline`, `datamachine/delete-pipeline`
-- `datamachine/queue-add`, `datamachine/queue-list`, `datamachine/queue-clear`, `datamachine/queue-remove`, `datamachine/queue-update`
+- `datamachine/queue-add`, `datamachine/queue-list`, `datamachine/queue-clear`, `datamachine/queue-remove`, `datamachine/queue-update`, `datamachine/queue-move`
 - `datamachine/send-ping`, `datamachine/execute-workflow`
 
 ## CLI Commands
@@ -121,10 +124,10 @@ wp datamachine flows
 wp datamachine flows run <flow_id>
 wp datamachine flows run <flow_id> --count=<n>
 
-# Prompt Queue
-wp datamachine flows queue add <flow_id> "prompt text"
-wp datamachine flows queue list <flow_id>
-wp datamachine flows queue clear <flow_id>
+# Prompt Queue (step-level)
+wp datamachine flows queue add <flow_id> --step=<flow_step_id> "prompt text"
+wp datamachine flows queue list <flow_id> --step=<flow_step_id>
+wp datamachine flows queue clear <flow_id> --step=<flow_step_id>
 
 # Jobs
 wp datamachine job list
@@ -145,15 +148,17 @@ wp datamachine flows run 25 && wp action-scheduler run --hooks=datamachine_run_f
 
 ### Managing the Prompt Queue
 ```bash
-# Add topics to queue
-wp datamachine flows queue add 25 "Topic one"
-wp datamachine flows queue add 25 "Topic two"
+# Add topics to a step's queue (requires flow_step_id)
+wp datamachine flows queue add 25 --step=ai_step_1_25 "Topic one"
+wp datamachine flows queue add 25 --step=ai_step_1_25 "Topic two"
 
-# Check queue
-wp datamachine flows queue list 25
+# Check a step's queue
+wp datamachine flows queue list 25 --step=ai_step_1_25
 
-# Clear queue
-wp datamachine flows queue clear 25
+# Clear a step's queue
+wp datamachine flows queue clear 25 --step=ai_step_1_25
+
+# Find flow_step_id: Check flow config or use the UI
 ```
 
 ## Taxonomy Handling
