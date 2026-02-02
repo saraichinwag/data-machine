@@ -211,8 +211,7 @@ export const reorderPipelineSteps = async ( pipelineId, steps ) => {
  * @param {string}        prompt        - System prompt content
  * @param {string}        provider      - AI provider
  * @param {string}        model         - AI model
- * @param {Array<string>} enabledTools  - Enabled AI tools
- * @param                 disabledTools
+ * @param {Array<string>} disabledTools - Tools to disable for this step (exclusion list)
  * @param {string}        stepType      - Step type (currently only 'ai' supported)
  * @param {number}        pipelineId    - Pipeline ID for context
  * @return {Promise<Object>} Updated step data

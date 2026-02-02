@@ -65,7 +65,7 @@ export default function PipelineStepCard( {
 					prompt,
 					stepConfig.provider,
 					stepConfig.model,
-					[], // enabledTools - not available in inline editing
+					[], // disabledTools - empty means no tools disabled (use all global)
 					step.step_type,
 					pipelineId
 				);
@@ -135,26 +135,37 @@ export default function PipelineStepCard( {
 						<div className="datamachine-step-card-tools-label">
 							<strong>{ __( 'Tools:', 'data-machine' ) }</strong>{ ' ' }
 							{ ( () => {
-								const isExplicitlyConfigured = Array.isArray(
-									stepConfig.enabled_tools
-								);
-								const effectiveTools = isExplicitlyConfigured
-									? stepConfig.enabled_tools
-									: Object.entries( toolsData )
-											.filter(
-												( [ , tool ] ) =>
-													tool.globally_enabled
-											)
-											.map( ( [ id ] ) => id );
+								// Get all globally-enabled tools
+								const globallyEnabledTools = Object.entries(
+									toolsData
+								)
+									.filter(
+										( [ , tool ] ) => tool.globally_enabled
+									)
+									.map( ( [ id ] ) => id );
+
+								// disabled_tools is exclusion list
+								const disabledTools = Array.isArray(
+									stepConfig.disabled_tools
+								)
+									? stepConfig.disabled_tools
+									: [];
+
+								// Effective tools = globally enabled minus disabled
+								const effectiveTools =
+									globallyEnabledTools.filter(
+										( toolId ) =>
+											! disabledTools.includes( toolId )
+									);
 
 								if ( effectiveTools.length === 0 ) {
-									return isExplicitlyConfigured
+									return globallyEnabledTools.length === 0
 										? __(
-												'None (disabled)',
+												'None configured',
 												'data-machine'
 										  )
 										: __(
-												'None configured',
+												'None (all disabled)',
 												'data-machine'
 										  );
 								}
