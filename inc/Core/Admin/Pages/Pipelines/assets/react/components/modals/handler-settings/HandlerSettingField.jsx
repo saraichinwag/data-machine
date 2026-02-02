@@ -11,6 +11,11 @@ import {
 import { applyFilters } from '@wordpress/hooks';
 
 /**
+ * Internal dependencies
+ */
+import UrlListField from './UrlListField';
+
+/**
  * Shared renderer for handler schema-driven fields.
  *
  * Uses resolved field state from API (backend single source of truth).
@@ -123,6 +128,16 @@ export default function HandlerSettingField( {
 						help={ help }
 					/>
 				</div>
+			);
+
+		case 'url_list':
+			return (
+				<UrlListField
+					fieldKey={ fieldKey }
+					fieldConfig={ fieldConfig }
+					value={ resolvedValue }
+					onChange={ onChange }
+				/>
 			);
 
 		case 'text':

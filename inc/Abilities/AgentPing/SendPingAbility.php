@@ -36,8 +36,8 @@ class SendPingAbility {
 						'required'   => array( 'webhook_url' ),
 						'properties' => array(
 							'webhook_url'  => array(
-								'type'        => 'string',
-								'description' => __( 'URL(s) to POST data to. Supports multiple URLs (one per line).', 'data-machine' ),
+								'type'        => array( 'string', 'array' ),
+								'description' => __( 'URL(s) to POST data to. Accepts array or newline-separated string.', 'data-machine' ),
 							),
 							'prompt'       => array(
 								'type'        => 'string',
@@ -114,27 +114,34 @@ class SendPingAbility {
 	 * @return array Result with success status.
 	 */
 	public function execute( array $input ): array {
-		$webhook_urls_raw = trim( $input['webhook_url'] ?? '' );
-		$prompt           = $input['prompt'] ?? '';
-		$data_packets     = $input['data_packets'] ?? array();
-		$engine_data      = $input['engine_data'] ?? array();
-		$flow_id          = $input['flow_id'] ?? null;
-		$pipeline_id      = $input['pipeline_id'] ?? null;
-		$job_id           = $input['job_id'] ?? null;
-		$from_queue       = $input['from_queue'] ?? false;
+		$webhook_urls_input = $input['webhook_url'] ?? '';
+		$prompt             = $input['prompt'] ?? '';
+		$data_packets       = $input['data_packets'] ?? array();
+		$engine_data        = $input['engine_data'] ?? array();
+		$flow_id            = $input['flow_id'] ?? null;
+		$pipeline_id        = $input['pipeline_id'] ?? null;
+		$job_id             = $input['job_id'] ?? null;
+		$from_queue         = $input['from_queue'] ?? false;
 
-		if ( empty( $webhook_urls_raw ) ) {
+		if ( empty( $webhook_urls_input ) ) {
 			return array(
 				'success' => false,
 				'error'   => 'webhook_url is required',
 			);
 		}
 
-		// Support multiple URLs (one per line).
-		$webhook_urls = array_filter(
-			array_map( 'trim', preg_split( '/[\r\n]+/', $webhook_urls_raw ) ),
-			fn( $url ) => ! empty( $url )
-		);
+		// Support both array (from url_list field) and string (legacy/newline-separated).
+		if ( is_array( $webhook_urls_input ) ) {
+			$webhook_urls = array_filter(
+				array_map( 'trim', $webhook_urls_input ),
+				fn( $url ) => ! empty( $url )
+			);
+		} else {
+			$webhook_urls = array_filter(
+				array_map( 'trim', preg_split( '/[\r\n]+/', trim( $webhook_urls_input ) ) ),
+				fn( $url ) => ! empty( $url )
+			);
+		}
 
 		if ( empty( $webhook_urls ) ) {
 			return array(

@@ -27,9 +27,9 @@ class AgentPingSettings extends SettingsHandler {
 	public static function get_fields(): array {
 		return array(
 			'webhook_url' => array(
-				'type'        => 'textarea',
+				'type'        => 'url_list',
 				'label'       => __( 'Webhook URL(s)', 'data-machine' ),
-				'description' => __( 'URL(s) to POST data to. Supports multiple URLs (one per line) for Discord, Slack, or custom endpoints.', 'data-machine' ),
+				'description' => __( 'URL(s) to POST data to (Discord, Slack, or custom endpoints).', 'data-machine' ),
 				'required'    => true,
 			),
 			'prompt'      => array(
