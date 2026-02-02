@@ -14,7 +14,7 @@ import { __ } from '@wordpress/i18n';
  * Internal dependencies
  */
 import FlowStepHandler from './FlowStepHandler';
-import { useUpdateQueueItem } from '../../queries/queue';
+import { useUpdateQueueItem, useAddToQueue } from '../../queries/queue';
 import { AUTO_SAVE_DELAY } from '../../utils/constants';
 import { useStepTypes } from '../../queries/config';
 
@@ -65,6 +65,7 @@ export default function FlowStepCard( {
 	const [ error, setError ] = useState( null );
 	const saveTimeout = useRef( null );
 	const updateQueueItemMutation = useUpdateQueueItem();
+	const addToQueueMutation = useAddToQueue();
 
 	/**
 	 * Sync local user message with queue/config changes
@@ -76,11 +77,16 @@ export default function FlowStepCard( {
 	}, [ firstQueuePrompt, flowStepConfig.user_message ] );
 
 	/**
-	 * Save user message to queue (index 0)
+	 * Save user message to queue (add if empty, update index 0 if exists)
 	 */
 	const saveToQueue = useCallback(
 		async ( message ) => {
 			if ( ! isAiStep ) {
+				return;
+			}
+
+			// Skip if message is empty (don't add empty items)
+			if ( ! message.trim() ) {
 				return;
 			}
 
@@ -94,22 +100,33 @@ export default function FlowStepCard( {
 			setError( null );
 
 			try {
-				const response = await updateQueueItemMutation.mutateAsync( {
-					flowId,
-					index: 0,
-					prompt: message,
-				} );
+				let response;
+
+				if ( queueHasItems ) {
+					// Update existing queue[0]
+					response = await updateQueueItemMutation.mutateAsync( {
+						flowId,
+						index: 0,
+						prompt: message,
+					} );
+				} else {
+					// Add new item when queue is empty
+					response = await addToQueueMutation.mutateAsync( {
+						flowId,
+						prompt: message,
+					} );
+				}
 
 				if ( ! response?.success ) {
 					setError(
 						response?.message ||
-							__( 'Failed to update prompt queue', 'data-machine' )
+							__( 'Failed to save prompt', 'data-machine' )
 					);
 					setLocalUserMessage( currentMessage );
 				}
 			} catch ( err ) {
 				// eslint-disable-next-line no-console
-				console.error( 'Queue update error:', err );
+				console.error( 'Queue save error:', err );
 				setError(
 					err.message || __( 'An error occurred', 'data-machine' )
 				);
@@ -121,8 +138,10 @@ export default function FlowStepCard( {
 		[
 			flowId,
 			firstQueuePrompt,
+			queueHasItems,
 			isAiStep,
 			updateQueueItemMutation,
+			addToQueueMutation,
 		]
 	);
 
@@ -191,7 +210,7 @@ export default function FlowStepCard( {
 			);
 		}
 		return __(
-			'Enter the prompt for the AI step. Use Manage Queue to add multiple prompts.',
+			'Type a prompt to add it to the queue. Use Manage Queue for multiple prompts.',
 			'data-machine'
 		);
 	};
