@@ -166,6 +166,9 @@ class FlowsCommand extends BaseCommand {
 	 *     # Remove a prompt from queue by index
 	 *     wp datamachine flows queue remove 42 0
 	 *
+	 *     # Update a prompt at specific index
+	 *     wp datamachine flows queue update 42 0 "Revised task instructions"
+	 *
 	 *     # Clear all prompts from queue
 	 *     wp datamachine flows queue clear 42
 	 */
@@ -454,7 +457,7 @@ class FlowsCommand extends BaseCommand {
 	 */
 	private function handleQueue( array $args, array $assoc_args ): void {
 		if ( empty( $args ) ) {
-			WP_CLI::error( 'Usage: wp datamachine flows queue <add|list|clear|remove> <flow_id> [prompt|index]' );
+			WP_CLI::error( 'Usage: wp datamachine flows queue <add|list|clear|remove|update> <flow_id> [prompt|index]' );
 			return;
 		}
 
@@ -473,8 +476,11 @@ class FlowsCommand extends BaseCommand {
 			case 'remove':
 				$this->queueRemove( array_slice( $args, 1 ), $assoc_args );
 				break;
+			case 'update':
+				$this->queueUpdate( array_slice( $args, 1 ), $assoc_args );
+				break;
 			default:
-				WP_CLI::error( "Unknown queue action: {$action}. Use: add, list, clear, remove" );
+				WP_CLI::error( "Unknown queue action: {$action}. Use: add, list, clear, remove, update" );
 		}
 	}
 
@@ -652,5 +658,48 @@ class FlowsCommand extends BaseCommand {
 				: $result['removed_prompt'];
 			WP_CLI::log( sprintf( 'Removed: %s', $preview ) );
 		}
+	}
+
+	/**
+	 * Update a prompt at a specific index in the queue.
+	 *
+	 * @param array $args       Positional arguments (flow_id, index, prompt).
+	 * @param array $assoc_args Associative arguments.
+	 */
+	private function queueUpdate( array $args, array $assoc_args ): void {
+		if ( count( $args ) < 3 ) {
+			WP_CLI::error( 'Usage: wp datamachine flows queue update <flow_id> <index> "new prompt text"' );
+			return;
+		}
+
+		$flow_id = (int) $args[0];
+		$index   = (int) $args[1];
+		$prompt  = $args[2];
+
+		if ( $flow_id <= 0 ) {
+			WP_CLI::error( 'flow_id must be a positive integer' );
+			return;
+		}
+
+		if ( $index < 0 ) {
+			WP_CLI::error( 'index must be a non-negative integer' );
+			return;
+		}
+
+		$ability = new \DataMachine\Abilities\FlowAbilities();
+		$result  = $ability->executeQueueUpdate(
+			array(
+				'flow_id' => $flow_id,
+				'index'   => $index,
+				'prompt'  => $prompt,
+			)
+		);
+
+		if ( ! $result['success'] ) {
+			WP_CLI::error( $result['error'] ?? 'Failed to update prompt in queue' );
+			return;
+		}
+
+		WP_CLI::success( $result['message'] ?? 'Prompt updated in queue.' );
 	}
 }
