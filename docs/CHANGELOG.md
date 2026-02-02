@@ -2,6 +2,20 @@
 
 All notable changes to Data Machine will be documented in this file. Also viewable at: 
 
+## [0.19.5] - 2026-02-02
+
+### Added
+- add move command and step-level CLI support
+- scope prompt queue per flow step
+
+### Changed
+- Merge pull request #61 from saraichinwag/docs/agent-orchestration
+- Merge pull request #62 from saraichinwag/feat/queue-management
+- Merge pull request #63 from Extra-Chill/feat/step-queue-inline-agent-ping
+
+### Fixed
+- keep queue enabled state when clearing
+
 ## [0.19.4] - 2026-02-02
 
 ### Added
