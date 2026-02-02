@@ -277,20 +277,16 @@ class ToolManager {
 			return false; // Tool doesn't exist
 		}
 
-		// Pipeline context: check step-specific selections
-		if ( $context_id ) {
-			return $this->is_step_tool_enabled( $context_id, $tool_id );
-		}
+// Simplified: always use global enablement, ignore step-level config
+// Step-level tool enablement removed for architectural simplification
+if ( ! $this->is_globally_enabled( $tool_id ) ) {
+    return false; // Globally disabled
+}
 
-		// Chat context (no context_id): check global enablement + configuration
-		if ( ! $this->is_globally_enabled( $tool_id ) ) {
-			return false; // Globally disabled
-		}
+$requires_config = $this->requires_configuration( $tool_id );
+$configured      = $this->is_tool_configured( $tool_id );
 
-		$requires_config = $this->requires_configuration( $tool_id );
-		$configured      = $this->is_tool_configured( $tool_id );
-
-		return ! $requires_config || $configured;
+return ! $requires_config || $configured;
 	}
 
 	// ============================================
