@@ -31,9 +31,6 @@ define( 'DATAMACHINE_LOG_DIR', '/datamachine-logs' );
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-// Abilities API helper (provides wp_execute_ability function)
-require_once __DIR__ . '/inc/Engine/Helpers/AbilitiesHelper.php';
-
 // WP-CLI integration
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
 	require_once __DIR__ . '/inc/Cli/Bootstrap.php';

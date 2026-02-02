@@ -123,8 +123,8 @@ class AgentPingStep extends Step {
 		$from_queue   = $queue_result['from_queue'];
 
 		// Execute the send-ping ability
-		$result = wp_execute_ability(
-			'datamachine/send-ping',
+		$ability = wp_get_ability( 'datamachine/send-ping' );
+		$result  = $ability->execute(
 			array(
 				'webhook_url'  => $webhook_url,
 				'prompt'       => $prompt,
