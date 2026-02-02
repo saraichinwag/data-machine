@@ -2,6 +2,18 @@
 
 All notable changes to Data Machine will be documented in this file. Also viewable at: 
 
+## [0.19.8] - 2026-02-02
+
+### Added
+- feat(agent-ping): add url_list field type with + button UI
+- feat(agent-ping): support multiple webhook URLs
+
+### Changed
+- Merge pull request #67 from saraichinwag/feature/agent-ping-multi-url
+
+### Fixed
+- fix(url-list): use CSS classes and add sanitization
+
 ## [0.19.7] - 2026-02-02
 
 ### Changed
