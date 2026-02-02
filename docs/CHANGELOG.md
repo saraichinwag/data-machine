@@ -5,10 +5,10 @@ All notable changes to Data Machine will be documented in this file. Also viewab
 ## [1.3.0] - 2026-02-02
 
 ### Changed
-- **BREAKING**: Renamed `enabled_tools` to `disabled_tools` in AI step configuration
+- **BREAKING**: Replaced `enabled_tools` with `disabled_tools` in AI step configuration
   - Empty array now means "use all globally enabled tools" (no exclusions)
   - Non-empty array explicitly excludes those tools from the step
-  - Old `enabled_tools` config is ignored (graceful degradation)
+  - **Behavior change**: Steps with old `enabled_tools` config will now have access to ALL globally-enabled tools (old config is ignored, not migrated)
 - Tool enablement logic: `Available = Globally enabled − Step disabled`
 
 ### Fixed
