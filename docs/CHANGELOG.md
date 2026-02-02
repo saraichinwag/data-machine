@@ -2,6 +2,25 @@
 
 All notable changes to Data Machine will be documented in this file. Also viewable at: 
 
+## [0.19.4] - 2026-02-02
+
+### Added
+- add PromptField component and Agent Ping configuration
+
+### Changed
+- Merge pull request #58 from saraichinwag/feat/promptfield-agent-ping-config
+- Merge pull request #57 from saraichinwag/fix/ghost-step-filter
+- Merge pull request #56 from saraichinwag/fix/tools-display-sync
+
+### Fixed
+- remove Agent Ping from API client (AI-only)
+- remove pipeline-level Agent Ping UI/API/display
+- revert to handler_config, set hasPipelineConfig false
+- align Agent Ping config source of truth to pipeline_config
+- wire WebhookUrlField, dedupe URL validation, remove dead state
+- filter ghost steps without step_type from pipeline display
+- sync tools display with global settings - correct logic
+
 ## [0.19.3] - 2026-02-02
 
 ### Changed
