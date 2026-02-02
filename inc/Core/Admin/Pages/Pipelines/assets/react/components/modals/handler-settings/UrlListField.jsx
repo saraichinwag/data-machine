@@ -57,18 +57,11 @@ export default function UrlListField( {
 				<div 
 					key={ index } 
 					className="datamachine-url-list-field__row"
-					style={ { 
-						display: 'flex', 
-						alignItems: 'center', 
-						gap: '8px',
-						marginBottom: '8px'
-					} }
 				>
 					<TextControl
 						value={ url }
 						onChange={ ( newUrl ) => handleUrlChange( index, newUrl ) }
 						placeholder="https://..."
-						style={ { flex: 1, marginBottom: 0 } }
 						__nextHasNoMarginBottom
 					/>
 					{ urls.length > 1 && (
@@ -93,7 +86,7 @@ export default function UrlListField( {
 			</Button>
 			
 			{ help && (
-				<p className="components-base-control__help" style={ { marginTop: '8px' } }>
+				<p className="components-base-control__help datamachine-url-list-field__help">
 					{ help }
 				</p>
 			) }
