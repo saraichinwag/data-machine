@@ -2,6 +2,12 @@
 
 All notable changes to Data Machine will be documented in this file. Also viewable at: 
 
+## [0.18.3] - 2026-02-01
+
+### Changed
+- Document agent self-orchestration in README and overview
+- Extend Agent Ping payload with engine_data context
+
 ## [0.18.2] - 2026-02-01
 
 ### Changed
