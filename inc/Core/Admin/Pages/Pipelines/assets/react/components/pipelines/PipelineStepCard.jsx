@@ -50,6 +50,12 @@ export default function PipelineStepCard( {
 		step.step_type === 'ai'
 			? pipelineConfig[ step.pipeline_step_id ]
 			: null;
+	const enabledTools =
+		aiConfig?.enabled_tools?.length > 0
+			? aiConfig.enabled_tools
+			: Object.entries( toolsData || {} )
+					.filter( ( [ , tool ] ) => tool.globally_enabled )
+					.map( ( [ name ] ) => name );
 
 	const [ localPrompt, setLocalPrompt ] = useState(
 		aiConfig?.system_prompt || ''
@@ -193,8 +199,8 @@ export default function PipelineStepCard( {
 						</div>
 						<div className="datamachine-step-card-tools-label">
 							<strong>{ __( 'Tools:', 'data-machine' ) }</strong>{ ' ' }
-							{ aiConfig.enabled_tools?.length > 0
-								? aiConfig.enabled_tools
+							{ enabledTools.length > 0
+								? enabledTools
 										.map(
 											( toolId ) =>
 												toolsData[ toolId ]?.label ||

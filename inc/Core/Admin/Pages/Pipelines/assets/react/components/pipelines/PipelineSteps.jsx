@@ -44,7 +44,7 @@ export default function PipelineSteps( {
 		}
 
 		return Object.values( pipelineConfig )
-			.filter( ( step ) => step.step_type )
+			.filter( ( step ) => step && step.step_type )
 			.sort( ( a, b ) => {
 				const orderA = a.execution_order || 0;
 				const orderB = b.execution_order || 0;
