@@ -2,6 +2,14 @@
 
 All notable changes to Data Machine will be documented in this file. Also viewable at: 
 
+## [0.19.7] - 2026-02-02
+
+### Changed
+- Merge pull request #66 from Extra-Chill/fix/agent-ping-settings-display
+
+### Fixed
+- suppress step settings display when configured
+
 ## [0.19.6] - 2026-02-02
 
 ### Changed
