@@ -2,6 +2,12 @@
 
 All notable changes to Data Machine will be documented in this file. Also viewable at: 
 
+## [0.18.4] - 2026-02-01
+
+### Changed
+- Hide handler badge for non-handler steps
+- Allow adding prompt to queue when empty
+
 ## [0.18.3] - 2026-02-01
 
 ### Changed
