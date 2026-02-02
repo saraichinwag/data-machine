@@ -2,6 +2,14 @@
 
 All notable changes to Data Machine will be documented in this file. Also viewable at: 
 
+## [0.19.11] - 2026-02-02
+
+### Added
+- add Agent Ping auth header fields to the pipeline builder UI
+
+### Fixed
+- default handler_slug to step_type for non-handler steps when saving handler_config
+
 ## [0.19.10] - 2026-02-02
 
 ### Added
