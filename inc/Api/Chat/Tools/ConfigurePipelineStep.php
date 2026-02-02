@@ -55,10 +55,10 @@ class ConfigurePipelineStep extends BaseTool {
 					'required'    => false,
 					'description' => 'AI model identifier (e.g., "claude-sonnet-4", "gpt-4o")',
 				),
-				'enabled_tools'    => array(
+				'disabled_tools'    => array(
 					'type'        => 'array',
 					'required'    => false,
-					'description' => 'Array of tool slugs to enable for this AI step',
+					'description' => 'Array of tool slugs to disable for this AI step',
 				),
 			),
 		);

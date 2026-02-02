@@ -207,13 +207,13 @@ export const reorderPipelineSteps = async ( pipelineId, steps ) => {
 /**
  * Update AI step configuration
  *
- * @param {string}        stepId       - Pipeline step ID
- * @param {string}        prompt       - System prompt content
- * @param {string}        provider     - AI provider
- * @param {string}        model        - AI model
- * @param {Array<string>} enabledTools - Enabled AI tools
- * @param {string}        stepType     - Step type (currently only 'ai' supported)
- * @param {number}        pipelineId   - Pipeline ID for context
+ * @param {string}        stepId        - Pipeline step ID
+ * @param {string}        prompt        - System prompt content
+ * @param {string}        provider      - AI provider
+ * @param {string}        model         - AI model
+ * @param {Array<string>} disabledTools - Tools to disable for this step (exclusion list)
+ * @param {string}        stepType      - Step type (currently only 'ai' supported)
+ * @param {number}        pipelineId    - Pipeline ID for context
  * @return {Promise<Object>} Updated step data
  */
 export const updateSystemPrompt = async (
@@ -221,7 +221,7 @@ export const updateSystemPrompt = async (
 	prompt,
 	provider,
 	model,
-	enabledTools = [],
+	disabledTools = [],
 	stepType = 'ai',
 	pipelineId = null
 ) => {
@@ -231,7 +231,7 @@ export const updateSystemPrompt = async (
 		provider,
 		model,
 		system_prompt: prompt,
-		enabled_tools: enabledTools,
+		disabled_tools: disabledTools,
 	};
 
 	return await client.put( `/pipelines/steps/${ stepId }/config`, payload );
@@ -563,7 +563,9 @@ export const addToFlowQueue = async ( flowId, flowStepId, prompts ) => {
  */
 export const clearFlowQueue = async ( flowId, flowStepId ) => {
 	return await client.delete(
-		`/flows/${ flowId }/queue?flow_step_id=${ encodeURIComponent( flowStepId ) }`
+		`/flows/${ flowId }/queue?flow_step_id=${ encodeURIComponent(
+			flowStepId
+		) }`
 	);
 };
 
@@ -577,7 +579,9 @@ export const clearFlowQueue = async ( flowId, flowStepId ) => {
  */
 export const removeFromFlowQueue = async ( flowId, flowStepId, index ) => {
 	return await client.delete(
-		`/flows/${ flowId }/queue/${ index }?flow_step_id=${ encodeURIComponent( flowStepId ) }`
+		`/flows/${ flowId }/queue/${ index }?flow_step_id=${ encodeURIComponent(
+			flowStepId
+		) }`
 	);
 };
 
