@@ -8,7 +8,7 @@ All notable changes to Data Machine will be documented in this file. Also viewab
 - Clarify Agent Ping outbound-only loop patterns and REST triggers in docs
 - Align cache management and direct execution sentinel docs; drop stale cache endpoint example
 
-## [1.3.0] - 2026-02-02
+## [0.19.12] - 2026-02-02
 
 ### Changed
 - **BREAKING**: Replaced `enabled_tools` with `disabled_tools` in AI step configuration
