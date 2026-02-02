@@ -78,6 +78,9 @@ abstract class SettingsHandler {
 			case 'url':
 				return self::sanitizeUrl( $raw_settings, $key, $default );
 
+			case 'url_list':
+				return self::sanitizeUrlList( $raw_settings, $key );
+
 			case 'checkbox':
 				return self::sanitizeCheckbox( $raw_settings, $key );
 
@@ -120,6 +123,36 @@ abstract class SettingsHandler {
 	protected static function sanitizeUrl( array $raw_settings, string $key, $default ): string {
 		$value = $raw_settings[ $key ] ?? $default;
 		return esc_url_raw( wp_unslash( $value ) );
+	}
+
+	/**
+	 * Sanitize URL list field (array of URLs).
+	 *
+	 * @param array  $raw_settings Raw settings array.
+	 * @param string $key          Field key.
+	 * @return array Sanitized array of URLs.
+	 */
+	protected static function sanitizeUrlList( array $raw_settings, string $key ): array {
+		$value = $raw_settings[ $key ] ?? array();
+
+		// Handle string input (newline-separated URLs for backward compat)
+		if ( is_string( $value ) ) {
+			$value = preg_split( '/[\r\n]+/', $value );
+		}
+
+		if ( ! is_array( $value ) ) {
+			return array();
+		}
+
+		$sanitized = array();
+		foreach ( $value as $url ) {
+			$url = esc_url_raw( wp_unslash( trim( $url ) ) );
+			if ( ! empty( $url ) ) {
+				$sanitized[] = $url;
+			}
+		}
+
+		return $sanitized;
 	}
 
 	/**

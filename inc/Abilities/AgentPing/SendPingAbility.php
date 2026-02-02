@@ -29,15 +29,15 @@ class SendPingAbility {
 				'datamachine/send-ping',
 				array(
 					'label'               => __( 'Send Ping', 'data-machine' ),
-					'description'         => __( 'Send pipeline context to a webhook endpoint (Discord, Slack, custom).', 'data-machine' ),
+					'description'         => __( 'Send pipeline context to webhook endpoints. Supports multiple URLs (one per line).', 'data-machine' ),
 					'category'            => 'datamachine',
 					'input_schema'        => array(
 						'type'       => 'object',
 						'required'   => array( 'webhook_url' ),
 						'properties' => array(
 							'webhook_url'  => array(
-								'type'        => 'string',
-								'description' => __( 'URL to POST data to (Discord, Slack, custom endpoint)', 'data-machine' ),
+								'type'        => array( 'string', 'array' ),
+								'description' => __( 'URL(s) to POST data to. Accepts array or newline-separated string.', 'data-machine' ),
 							),
 							'prompt'       => array(
 								'type'        => 'string',
@@ -107,26 +107,115 @@ class SendPingAbility {
 	/**
 	 * Execute send ping ability.
 	 *
+	 * Supports multiple webhook URLs (one per line). Sends to all URLs
+	 * and returns success only if all requests succeed.
+	 *
 	 * @param array $input Input parameters.
 	 * @return array Result with success status.
 	 */
 	public function execute( array $input ): array {
-		$webhook_url  = trim( $input['webhook_url'] ?? '' );
-		$prompt       = $input['prompt'] ?? '';
-		$data_packets = $input['data_packets'] ?? array();
-		$engine_data  = $input['engine_data'] ?? array();
-		$flow_id      = $input['flow_id'] ?? null;
-		$pipeline_id  = $input['pipeline_id'] ?? null;
-		$job_id       = $input['job_id'] ?? null;
-		$from_queue   = $input['from_queue'] ?? false;
+		$webhook_urls_input = $input['webhook_url'] ?? '';
+		$prompt             = $input['prompt'] ?? '';
+		$data_packets       = $input['data_packets'] ?? array();
+		$engine_data        = $input['engine_data'] ?? array();
+		$flow_id            = $input['flow_id'] ?? null;
+		$pipeline_id        = $input['pipeline_id'] ?? null;
+		$job_id             = $input['job_id'] ?? null;
+		$from_queue         = $input['from_queue'] ?? false;
 
-		if ( empty( $webhook_url ) ) {
+		if ( empty( $webhook_urls_input ) ) {
 			return array(
 				'success' => false,
 				'error'   => 'webhook_url is required',
 			);
 		}
 
+		// Support both array (from url_list field) and string (legacy/newline-separated).
+		if ( is_array( $webhook_urls_input ) ) {
+			$webhook_urls = array_filter(
+				array_map( 'trim', $webhook_urls_input ),
+				fn( $url ) => ! empty( $url )
+			);
+		} else {
+			$webhook_urls = array_filter(
+				array_map( 'trim', preg_split( '/[\r\n]+/', trim( $webhook_urls_input ) ) ),
+				fn( $url ) => ! empty( $url )
+			);
+		}
+
+		if ( empty( $webhook_urls ) ) {
+			return array(
+				'success' => false,
+				'error'   => 'No valid webhook URLs provided',
+			);
+		}
+
+		$results     = array();
+		$all_success = true;
+		$errors      = array();
+
+		foreach ( $webhook_urls as $webhook_url ) {
+			$result = $this->sendToUrl(
+				$webhook_url,
+				$prompt,
+				$data_packets,
+				$engine_data,
+				$flow_id,
+				$pipeline_id,
+				$job_id,
+				$from_queue
+			);
+
+			$results[] = $result;
+
+			if ( ! $result['success'] ) {
+				$all_success = false;
+				$errors[]    = $this->sanitizeUrlForLog( $webhook_url ) . ': ' . ( $result['error'] ?? 'Unknown error' );
+			}
+		}
+
+		$url_count = count( $webhook_urls );
+
+		if ( $all_success ) {
+			return array(
+				'success' => true,
+				'message' => $url_count > 1
+					? sprintf( 'Webhook notifications sent successfully to %d URLs', $url_count )
+					: 'Webhook notification sent successfully',
+				'results' => $results,
+			);
+		}
+
+		return array(
+			'success' => false,
+			'error'   => implode( '; ', $errors ),
+			'results' => $results,
+		);
+	}
+
+	/**
+	 * Send ping to a single webhook URL.
+	 *
+	 * @param string   $webhook_url Target URL.
+	 * @param string   $prompt Optional instructions.
+	 * @param array    $data_packets Pipeline data packets.
+	 * @param array    $engine_data Engine data.
+	 * @param mixed    $flow_id Flow ID.
+	 * @param mixed    $pipeline_id Pipeline ID.
+	 * @param int|null $job_id Job ID.
+	 * @param bool     $from_queue Whether job originated from prompt queue.
+	 * @return array Result with success status.
+	 */
+	private function sendToUrl(
+		string $webhook_url,
+		string $prompt,
+		array $data_packets,
+		array $engine_data,
+		$flow_id,
+		$pipeline_id,
+		?int $job_id,
+		bool $from_queue
+	): array {
 		$payload = $this->buildPayload( $webhook_url, $prompt, $data_packets, $engine_data, $flow_id, $pipeline_id, $job_id, $from_queue );
 
 		$response = wp_remote_post(
@@ -151,6 +240,7 @@ class SendPingAbility {
 
 			return array(
 				'success' => false,
+				'url'     => $this->sanitizeUrlForLog( $webhook_url ),
 				'error'   => $response->get_error_message(),
 			);
 		}
@@ -170,8 +260,8 @@ class SendPingAbility {
 
 			return array(
 				'success'     => true,
+				'url'         => $this->sanitizeUrlForLog( $webhook_url ),
 				'status_code' => $status_code,
-				'message'     => 'Webhook notification sent successfully',
 			);
 		}
 
@@ -188,6 +278,7 @@ class SendPingAbility {
 
 		return array(
 			'success'     => false,
+			'url'         => $this->sanitizeUrlForLog( $webhook_url ),
 			'status_code' => $status_code,
 			'error'       => 'Webhook returned non-success status code: ' . $status_code,
 		);
