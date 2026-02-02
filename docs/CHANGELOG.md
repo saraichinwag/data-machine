@@ -2,6 +2,18 @@
 
 All notable changes to Data Machine will be documented in this file. Also viewable at: 
 
+## [0.19.6] - 2026-02-02
+
+### Changed
+- Merge pull request #64 from saraichinwag/fix/cli-pipeline-config-flag
+- Merge pull request #65 from saraichinwag/fix/cli-step-parameter
+
+### Fixed
+- return updated_fields from executeUpdatePipelineStep
+- add wp_unslash, is_array guards, restore JSON output
+- add missing --step parameter declaration for queue commands
+- implement --config flag for pipeline update command
+
 ## [0.19.5] - 2026-02-02
 
 ### Added
