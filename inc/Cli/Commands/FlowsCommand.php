@@ -460,6 +460,53 @@ class FlowsCommand extends BaseCommand {
 	}
 
 	/**
+	 * Resolve the queueable step for a flow when --step is not provided.
+	 *
+	 * @param int $flow_id Flow ID.
+	 * @return array{step_id: string|null, error: string|null}
+	 */
+	private function resolveQueueableStep( int $flow_id ): array {
+		global $wpdb;
+
+		$flow = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT flow_config FROM {$wpdb->prefix}datamachine_flows WHERE flow_id = %d",
+				$flow_id
+			),
+			ARRAY_A
+		);
+
+		if ( ! $flow ) {
+			return array( 'step_id' => null, 'error' => "Flow {$flow_id} not found." );
+		}
+
+		$config = json_decode( $flow['flow_config'], true );
+		if ( ! is_array( $config ) ) {
+			return array( 'step_id' => null, 'error' => 'Invalid flow configuration.' );
+		}
+
+		$queueable = array();
+		foreach ( $config as $step_id => $step_data ) {
+			if ( ! empty( $step_data['queue_enabled'] ) ) {
+				$queueable[] = $step_id;
+			}
+		}
+
+		if ( count( $queueable ) === 0 ) {
+			return array( 'step_id' => null, 'error' => "Flow {$flow_id} has no queueable steps." );
+		}
+
+		if ( count( $queueable ) > 1 ) {
+			return array(
+				'step_id' => null,
+				'error'   => sprintf( 'Flow %d has multiple queueable steps. Use --step: %s', $flow_id, implode( ', ', $queueable ) ),
+			);
+		}
+
+		return array( 'step_id' => $queueable[0], 'error' => null );
+	}
+
+	/**
 	 * Handle queue subcommands.
 	 *
 	 * @param array $args       Positional arguments (action, flow_id, [prompt|index]).
@@ -519,8 +566,12 @@ class FlowsCommand extends BaseCommand {
 		}
 
 		if ( empty( $flow_step_id ) ) {
-			WP_CLI::error( 'Required: --step=<flow_step_id>' );
-			return;
+			$resolved = $this->resolveQueueableStep( $flow_id );
+			if ( $resolved['error'] ) {
+				WP_CLI::error( $resolved['error'] );
+				return;
+			}
+			$flow_step_id = $resolved['step_id'];
 		}
 
 		if ( empty( trim( $prompt ) ) ) {
@@ -567,8 +618,12 @@ class FlowsCommand extends BaseCommand {
 		}
 
 		if ( empty( $flow_step_id ) ) {
-			WP_CLI::error( 'Required: --step=<flow_step_id>' );
-			return;
+			$resolved = $this->resolveQueueableStep( $flow_id );
+			if ( $resolved['error'] ) {
+				WP_CLI::error( $resolved['error'] );
+				return;
+			}
+			$flow_step_id = $resolved['step_id'];
 		}
 
 		$ability = new \DataMachine\Abilities\FlowAbilities();
@@ -636,8 +691,12 @@ class FlowsCommand extends BaseCommand {
 		}
 
 		if ( empty( $flow_step_id ) ) {
-			WP_CLI::error( 'Required: --step=<flow_step_id>' );
-			return;
+			$resolved = $this->resolveQueueableStep( $flow_id );
+			if ( $resolved['error'] ) {
+				WP_CLI::error( $resolved['error'] );
+				return;
+			}
+			$flow_step_id = $resolved['step_id'];
 		}
 
 		$ability = new \DataMachine\Abilities\FlowAbilities();
@@ -678,8 +737,12 @@ class FlowsCommand extends BaseCommand {
 		}
 
 		if ( empty( $flow_step_id ) ) {
-			WP_CLI::error( 'Required: --step=<flow_step_id>' );
-			return;
+			$resolved = $this->resolveQueueableStep( $flow_id );
+			if ( $resolved['error'] ) {
+				WP_CLI::error( $resolved['error'] );
+				return;
+			}
+			$flow_step_id = $resolved['step_id'];
 		}
 
 		if ( $index < 0 ) {
@@ -733,8 +796,12 @@ class FlowsCommand extends BaseCommand {
 		}
 
 		if ( empty( $flow_step_id ) ) {
-			WP_CLI::error( 'Required: --step=<flow_step_id>' );
-			return;
+			$resolved = $this->resolveQueueableStep( $flow_id );
+			if ( $resolved['error'] ) {
+				WP_CLI::error( $resolved['error'] );
+				return;
+			}
+			$flow_step_id = $resolved['step_id'];
 		}
 
 		if ( $index < 0 ) {
@@ -783,8 +850,12 @@ class FlowsCommand extends BaseCommand {
 		}
 
 		if ( empty( $flow_step_id ) ) {
-			WP_CLI::error( 'Required: --step=<flow_step_id>' );
-			return;
+			$resolved = $this->resolveQueueableStep( $flow_id );
+			if ( $resolved['error'] ) {
+				WP_CLI::error( $resolved['error'] );
+				return;
+			}
+			$flow_step_id = $resolved['step_id'];
 		}
 
 		if ( $from_index < 0 || $to_index < 0 ) {
