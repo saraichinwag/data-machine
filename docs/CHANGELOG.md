@@ -2,6 +2,11 @@
 
 All notable changes to Data Machine will be documented in this file. Also viewable at: 
 
+## [0.19.15] - 2026-02-03
+
+### Fixed
+- normalize shorthand flow scheduling intervals before validation
+
 ## [0.19.13] - 2026-02-03
 
 ### Changed
