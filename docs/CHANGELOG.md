@@ -2,6 +2,12 @@
 
 All notable changes to Data Machine will be documented in this file. Also viewable at: 
 
+## [0.20.1] - 2026-02-03
+
+### Added
+- wire alt_text_auto_generate_enabled to SettingsAbilities
+- Add toggle for alt text auto-generation on upload
+
 ## [0.20.0] - 2026-02-03
 
 ### Added
