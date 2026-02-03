@@ -2,6 +2,15 @@
 
 All notable changes to Data Machine will be documented in this file. Also viewable at: 
 
+## [0.19.16] - 2026-02-03
+
+### Added
+- auto-resolve queueable step when --step omitted
+
+### Fixed
+- store failure reasons in job status using compound format
+- correct timezone for next_run display
+
 ## [0.19.15] - 2026-02-03
 
 ### Fixed
