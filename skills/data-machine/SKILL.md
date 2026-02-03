@@ -78,25 +78,25 @@ Configure via `scheduling_config` in the flow:
 ### List Flows
 
 ```bash
-wp --allow-root datamachine flows list
+wp datamachine flows list
 ```
 
 ### Get Flow Details
 
 ```bash
-wp --allow-root datamachine flows get <flow_id>
+wp datamachine flows get <flow_id>
 ```
 
 ### Run a Flow Manually
 
 ```bash
-wp --allow-root datamachine flows run <flow_id>
+wp datamachine flows run <flow_id>
 ```
 
 ### Check Job Status
 
 ```bash
-wp --allow-root datamachine jobs list --limit=10
+wp datamachine jobs list --limit=10
 ```
 
 ---
@@ -111,13 +111,13 @@ This enables **varied task instructions** per execution — not the same prompt 
 
 ```bash
 # Add to queue
-wp --allow-root datamachine flows queue add <flow_id> "Task instruction here"
+wp datamachine flows queue add <flow_id> "Task instruction here"
 
 # List queue contents
-wp --allow-root datamachine flows queue list <flow_id>
+wp datamachine flows queue list <flow_id>
 
 # Clear queue
-wp --allow-root datamachine flows queue clear <flow_id>
+wp datamachine flows queue clear <flow_id>
 ```
 
 ### Chaining Pattern
@@ -240,6 +240,8 @@ local_search(query="topic name", title_only=true)
 
 ## CLI Reference
 
+**Note:** If running WP-CLI as root, add `--allow-root` to commands.
+
 ```bash
 # Settings
 wp datamachine settings list
@@ -274,17 +276,17 @@ tail -f wp-content/uploads/datamachine-logs/datamachine-pipeline.log
 ### Failed Jobs
 
 ```bash
-wp --allow-root datamachine jobs list --status=failed
+wp datamachine jobs list --status=failed
 ```
 
 ### Scheduled Actions
 
 ```bash
 # List pending actions
-wp --allow-root action-scheduler run --hooks=datamachine --force
+wp action-scheduler run --hooks=datamachine --force
 
 # Check cron
-wp --allow-root cron event list
+wp cron event list
 ```
 
 ---
