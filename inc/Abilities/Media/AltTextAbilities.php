@@ -149,6 +149,20 @@ class AltTextAbilities {
 		$post_id       = absint( $input['post_id'] ?? 0 );
 		$force         = ! empty( $input['force'] );
 
+		// Gate on provider/model being configured.
+		$provider = PluginSettings::get( 'default_provider', '' );
+		$model    = PluginSettings::get( 'default_model', '' );
+
+		if ( empty( $provider ) || empty( $model ) ) {
+			return array(
+				'success'        => false,
+				'queued_count'   => 0,
+				'attachment_ids' => array(),
+				'message'        => 'No default AI provider/model configured.',
+				'error'          => 'Configure default_provider and default_model in Data Machine settings before generating alt text.',
+			);
+		}
+
 		if ( 0 === $attachment_id && 0 === $post_id ) {
 			return array(
 				'success'        => false,
@@ -216,10 +230,12 @@ class AltTextAbilities {
 		}
 
 		return array(
-			'success'        => ! empty( $queued ),
+			'success'        => true,
 			'queued_count'   => count( $queued ),
 			'attachment_ids' => $queued,
-			'message'        => ! empty( $queued ) ? 'Alt text generation queued.' : 'No attachments queued.',
+			'message'        => ! empty( $queued )
+				? sprintf( 'Alt text generation queued for %d attachment(s).', count( $queued ) )
+				: 'No attachments queued (alt text already present or no eligible images).',
 		);
 	}
 
@@ -434,18 +450,49 @@ class AltTextAbilities {
 			return;
 		}
 
-		$updated = update_post_meta( $attachment_id, '_wp_attachment_image_alt', $alt_text );
+		// update_post_meta returns false when value unchanged (e.g., force regenerated same text).
+		// Check if current value matches to distinguish "unchanged" from "failed".
+		$current_alt = get_post_meta( $attachment_id, '_wp_attachment_image_alt', true );
+		$updated     = update_post_meta( $attachment_id, '_wp_attachment_image_alt', $alt_text );
 
-		do_action(
-			'datamachine_log',
-			$updated ? 'info' : 'error',
-			$updated ? 'Alt text generated and saved' : 'Alt text generated but failed to save',
-			array(
-				'attachment_id' => $attachment_id,
-				'agent_type'    => 'system',
-				'success'       => (bool) $updated,
-			)
-		);
+		if ( $updated ) {
+			do_action(
+				'datamachine_log',
+				'info',
+				'Alt text generated and saved',
+				array(
+					'attachment_id' => $attachment_id,
+					'alt_text'      => $alt_text,
+					'agent_type'    => 'system',
+					'success'       => true,
+				)
+			);
+		} elseif ( $current_alt === $alt_text ) {
+			// Value unchanged - not an error, just already correct.
+			do_action(
+				'datamachine_log',
+				'info',
+				'Alt text generated (unchanged from existing)',
+				array(
+					'attachment_id' => $attachment_id,
+					'alt_text'      => $alt_text,
+					'agent_type'    => 'system',
+					'success'       => true,
+				)
+			);
+		} else {
+			do_action(
+				'datamachine_log',
+				'error',
+				'Alt text generated but failed to save',
+				array(
+					'attachment_id' => $attachment_id,
+					'alt_text'      => $alt_text,
+					'agent_type'    => 'system',
+					'success'       => false,
+				)
+			);
+		}
 	}
 
 	/**
@@ -457,6 +504,14 @@ class AltTextAbilities {
 	public function queueAttachmentAltText( int $attachment_id ): void {
 		$attachment_id = absint( $attachment_id );
 		if ( $attachment_id <= 0 ) {
+			return;
+		}
+
+		// Skip scheduling if no provider/model configured - avoid queuing actions that will no-op.
+		$provider = PluginSettings::get( 'default_provider', '' );
+		$model    = PluginSettings::get( 'default_model', '' );
+
+		if ( empty( $provider ) || empty( $model ) ) {
 			return;
 		}
 
