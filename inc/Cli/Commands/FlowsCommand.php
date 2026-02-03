@@ -92,7 +92,7 @@ class FlowsCommand extends BaseCommand {
 	 * ---
 	 *
 	 * [--step=<flow_step_id>]
-	 * : Flow step ID for queue subcommands (queue add/list/remove/clear/update/move).
+	 * : Flow step ID for queue subcommands. Optional if flow has exactly one queueable step (auto-resolved).
 	 *
 	 * [--dry-run]
 	 * : Validate without creating (create subcommand).
@@ -157,26 +157,29 @@ class FlowsCommand extends BaseCommand {
 	 *     # Dry-run validation
 	 *     wp datamachine flows create --pipeline_id=3 --name="Test" --dry-run
 	 *
-	 *     # Add a prompt to the queue (requires --step)
+	 *     # Add a prompt to the queue (--step auto-resolved if flow has one queueable step)
+	 *     wp datamachine flows queue add 42 "Generate a blog post about AI"
+	 *
+	 *     # Add with explicit step (required if multiple queueable steps)
 	 *     wp datamachine flows queue add 42 --step=flow-42-step-abc123 "Generate a blog post about AI"
 	 *
-	 *     # List queued prompts for a step
-	 *     wp datamachine flows queue list 42 --step=flow-42-step-abc123
+	 *     # List queued prompts (--step optional)
+	 *     wp datamachine flows queue list 42
 	 *
 	 *     # List queued prompts as JSON
-	 *     wp datamachine flows queue list 42 --step=flow-42-step-abc123 --format=json
+	 *     wp datamachine flows queue list 42 --format=json
 	 *
 	 *     # Remove a prompt from queue by index
-	 *     wp datamachine flows queue remove 42 --step=flow-42-step-abc123 0
+	 *     wp datamachine flows queue remove 42 0
 	 *
 	 *     # Clear all prompts from queue
-	 *     wp datamachine flows queue clear 42 --step=flow-42-step-abc123
+	 *     wp datamachine flows queue clear 42
 	 *
 	 *     # Update a prompt at index 0
-	 *     wp datamachine flows queue update 42 --step=flow-42-step-abc123 0 "Updated prompt text"
+	 *     wp datamachine flows queue update 42 0 "Updated prompt text"
 	 *
 	 *     # Move a prompt from index 2 to index 0 (front of queue)
-	 *     wp datamachine flows queue move 42 --step=flow-42-step-abc123 2 0
+	 *     wp datamachine flows queue move 42 2 0
 	 */
 	public function __invoke( array $args, array $assoc_args ): void {
 		$flow_id     = null;
@@ -460,6 +463,53 @@ class FlowsCommand extends BaseCommand {
 	}
 
 	/**
+	 * Resolve the queueable step for a flow when --step is not provided.
+	 *
+	 * @param int $flow_id Flow ID.
+	 * @return array{step_id: string|null, error: string|null}
+	 */
+	private function resolveQueueableStep( int $flow_id ): array {
+		global $wpdb;
+
+		$flow = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT flow_config FROM {$wpdb->prefix}datamachine_flows WHERE flow_id = %d",
+				$flow_id
+			),
+			ARRAY_A
+		);
+
+		if ( ! $flow ) {
+			return array( 'step_id' => null, 'error' => "Flow {$flow_id} not found." );
+		}
+
+		$config = json_decode( $flow['flow_config'], true );
+		if ( ! is_array( $config ) ) {
+			return array( 'step_id' => null, 'error' => 'Invalid flow configuration.' );
+		}
+
+		$queueable = array();
+		foreach ( $config as $step_id => $step_data ) {
+			if ( ! empty( $step_data['queue_enabled'] ) ) {
+				$queueable[] = $step_id;
+			}
+		}
+
+		if ( count( $queueable ) === 0 ) {
+			return array( 'step_id' => null, 'error' => "Flow {$flow_id} has no queueable steps." );
+		}
+
+		if ( count( $queueable ) > 1 ) {
+			return array(
+				'step_id' => null,
+				'error'   => sprintf( 'Flow %d has multiple queueable steps. Use --step: %s', $flow_id, implode( ', ', $queueable ) ),
+			);
+		}
+
+		return array( 'step_id' => $queueable[0], 'error' => null );
+	}
+
+	/**
 	 * Handle queue subcommands.
 	 *
 	 * @param array $args       Positional arguments (action, flow_id, [prompt|index]).
@@ -519,8 +569,12 @@ class FlowsCommand extends BaseCommand {
 		}
 
 		if ( empty( $flow_step_id ) ) {
-			WP_CLI::error( 'Required: --step=<flow_step_id>' );
-			return;
+			$resolved = $this->resolveQueueableStep( $flow_id );
+			if ( $resolved['error'] ) {
+				WP_CLI::error( $resolved['error'] );
+				return;
+			}
+			$flow_step_id = $resolved['step_id'];
 		}
 
 		if ( empty( trim( $prompt ) ) ) {
@@ -567,8 +621,12 @@ class FlowsCommand extends BaseCommand {
 		}
 
 		if ( empty( $flow_step_id ) ) {
-			WP_CLI::error( 'Required: --step=<flow_step_id>' );
-			return;
+			$resolved = $this->resolveQueueableStep( $flow_id );
+			if ( $resolved['error'] ) {
+				WP_CLI::error( $resolved['error'] );
+				return;
+			}
+			$flow_step_id = $resolved['step_id'];
 		}
 
 		$ability = new \DataMachine\Abilities\FlowAbilities();
@@ -636,8 +694,12 @@ class FlowsCommand extends BaseCommand {
 		}
 
 		if ( empty( $flow_step_id ) ) {
-			WP_CLI::error( 'Required: --step=<flow_step_id>' );
-			return;
+			$resolved = $this->resolveQueueableStep( $flow_id );
+			if ( $resolved['error'] ) {
+				WP_CLI::error( $resolved['error'] );
+				return;
+			}
+			$flow_step_id = $resolved['step_id'];
 		}
 
 		$ability = new \DataMachine\Abilities\FlowAbilities();
@@ -678,8 +740,12 @@ class FlowsCommand extends BaseCommand {
 		}
 
 		if ( empty( $flow_step_id ) ) {
-			WP_CLI::error( 'Required: --step=<flow_step_id>' );
-			return;
+			$resolved = $this->resolveQueueableStep( $flow_id );
+			if ( $resolved['error'] ) {
+				WP_CLI::error( $resolved['error'] );
+				return;
+			}
+			$flow_step_id = $resolved['step_id'];
 		}
 
 		if ( $index < 0 ) {
@@ -733,8 +799,12 @@ class FlowsCommand extends BaseCommand {
 		}
 
 		if ( empty( $flow_step_id ) ) {
-			WP_CLI::error( 'Required: --step=<flow_step_id>' );
-			return;
+			$resolved = $this->resolveQueueableStep( $flow_id );
+			if ( $resolved['error'] ) {
+				WP_CLI::error( $resolved['error'] );
+				return;
+			}
+			$flow_step_id = $resolved['step_id'];
 		}
 
 		if ( $index < 0 ) {
@@ -783,8 +853,12 @@ class FlowsCommand extends BaseCommand {
 		}
 
 		if ( empty( $flow_step_id ) ) {
-			WP_CLI::error( 'Required: --step=<flow_step_id>' );
-			return;
+			$resolved = $this->resolveQueueableStep( $flow_id );
+			if ( $resolved['error'] ) {
+				WP_CLI::error( $resolved['error'] );
+				return;
+			}
+			$flow_step_id = $resolved['step_id'];
 		}
 
 		if ( $from_index < 0 || $to_index < 0 ) {
