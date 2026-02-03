@@ -240,6 +240,167 @@ class JobsCommand extends BaseCommand {
 	}
 
 	/**
+	 * Show detailed information about a specific job.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <job_id>
+	 * : The job ID to display.
+	 *
+	 * [--format=<format>]
+	 * : Output format.
+	 * ---
+	 * default: table
+	 * options:
+	 *   - table
+	 *   - json
+	 *   - yaml
+	 * ---
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     # Show job details
+	 *     wp datamachine jobs show 844
+	 *
+	 *     # Show job as JSON (includes full engine_data)
+	 *     wp datamachine jobs show 844 --format=json
+	 *
+	 * @subcommand show
+	 */
+	public function show( array $args, array $assoc_args ): void {
+		if ( empty( $args[0] ) ) {
+			WP_CLI::error( 'Job ID is required.' );
+			return;
+		}
+
+		$job_id = $args[0];
+
+		if ( ! is_numeric( $job_id ) || (int) $job_id <= 0 ) {
+			WP_CLI::error( 'Job ID must be a positive integer.' );
+			return;
+		}
+
+		$result = $this->abilities->executeGetJobs( array( 'job_id' => (int) $job_id ) );
+
+		if ( ! $result['success'] ) {
+			WP_CLI::error( $result['error'] ?? 'Unknown error occurred' );
+			return;
+		}
+
+		$jobs = $result['jobs'] ?? array();
+
+		if ( empty( $jobs ) ) {
+			WP_CLI::error( sprintf( 'Job %d not found.', (int) $job_id ) );
+			return;
+		}
+
+		$job    = $jobs[0];
+		$format = $assoc_args['format'] ?? 'table';
+
+		if ( 'json' === $format ) {
+			WP_CLI::log( wp_json_encode( $job, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) );
+			return;
+		}
+
+		if ( 'yaml' === $format ) {
+			WP_CLI::log( \Spyc::YAMLDump( $job, false, false, true ) );
+			return;
+		}
+
+		$this->outputJobTable( $job );
+	}
+
+	/**
+	 * Output job details in table format.
+	 *
+	 * @param array $job Job data.
+	 */
+	private function outputJobTable( array $job ): void {
+		$parsed_status = $this->parseCompoundStatus( $job['status'] ?? '' );
+
+		WP_CLI::log( sprintf( 'Job ID: %d', $job['job_id'] ?? 0 ) );
+		WP_CLI::log( sprintf( 'Flow: %s (ID: %s)', $job['flow_name'] ?? 'N/A', $job['flow_id'] ?? 'N/A' ) );
+		WP_CLI::log( sprintf( 'Pipeline ID: %s', $job['pipeline_id'] ?? 'N/A' ) );
+		WP_CLI::log( sprintf( 'Status: %s', $parsed_status['type'] ) );
+
+		if ( $parsed_status['reason'] ) {
+			WP_CLI::log( sprintf( 'Reason: %s', $parsed_status['reason'] ) );
+		}
+
+		WP_CLI::log( '' );
+		WP_CLI::log( sprintf( 'Created: %s', $job['created_at_display'] ?? $job['created_at'] ?? 'N/A' ) );
+		WP_CLI::log( sprintf( 'Completed: %s', $job['completed_at_display'] ?? $job['completed_at'] ?? '-' ) );
+
+		$engine_data = $job['engine_data'] ?? array();
+
+		if ( ! empty( $engine_data ) ) {
+			WP_CLI::log( '' );
+			WP_CLI::log( 'Engine Data:' );
+
+			$summary = $this->extractEngineDataSummary( $engine_data );
+
+			foreach ( $summary as $key => $value ) {
+				WP_CLI::log( sprintf( '  %s: %s', $key, $value ) );
+			}
+		}
+	}
+
+	/**
+	 * Parse compound status into type and reason.
+	 *
+	 * Handles formats like "agent_skipped - not a music event".
+	 *
+	 * @param string $status Raw status string.
+	 * @return array With 'type' and 'reason' keys.
+	 */
+	private function parseCompoundStatus( string $status ): array {
+		if ( strpos( $status, ' - ' ) !== false ) {
+			$parts = explode( ' - ', $status, 2 );
+			return array(
+				'type'   => trim( $parts[0] ),
+				'reason' => trim( $parts[1] ),
+			);
+		}
+
+		return array(
+			'type'   => $status,
+			'reason' => '',
+		);
+	}
+
+	/**
+	 * Extract key fields from engine_data for table display.
+	 *
+	 * @param array $engine_data Full engine data array.
+	 * @return array Key-value pairs for display.
+	 */
+	private function extractEngineDataSummary( array $engine_data ): array {
+		$summary      = array();
+		$display_keys = array(
+			'source_url'   => 'Source URL',
+			'image_url'    => 'Image URL',
+			'post_id'      => 'Post ID',
+			'job_status'   => 'Job Status',
+			'current_step' => 'Current Step',
+			'skip_reason'  => 'Skip Reason',
+		);
+
+		foreach ( $display_keys as $key => $label ) {
+			if ( isset( $engine_data[ $key ] ) && '' !== $engine_data[ $key ] ) {
+				$value = $engine_data[ $key ];
+
+				if ( is_array( $value ) ) {
+					$value = wp_json_encode( $value );
+				}
+
+				$summary[ $label ] = (string) $value;
+			}
+		}
+
+		return $summary;
+	}
+
+	/**
 	 * Show job status summary grouped by status.
 	 *
 	 * ## OPTIONS
