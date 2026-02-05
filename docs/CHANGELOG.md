@@ -3,7 +3,7 @@
 All notable changes to Data Machine will be documented in this file. Also viewable at: 
 
 
-## Unreleased
+## [0.21.0] - 2026-02-05
 
 ### Added
 - add scheduled cleanup for stale Action Scheduler claims with configurable max age (default 24h)
