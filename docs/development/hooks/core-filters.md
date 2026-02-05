@@ -338,7 +338,7 @@ add_filter('datamachine_directives', function($directives) {
 
 **Return**: String - The prompt to use for title generation
 
-**Location**: `/inc/Core/Chat/ChatSession.php`
+**Location**: `/inc/Abilities/SystemAbilities.php`
 
 **Usage Example**:
 ```php
