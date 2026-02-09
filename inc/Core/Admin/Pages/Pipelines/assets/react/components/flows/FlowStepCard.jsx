@@ -388,9 +388,11 @@ export default function FlowStepCard( {
 	);
 
 	const getPromptValue = () => {
-		if ( shouldUseQueue ) {
-			return queueHasItems ? firstQueuePrompt : '';
+		// Queue has items → show queue[0]
+		if ( queueHasItems ) {
+			return firstQueuePrompt;
 		}
+		// Queue empty → fall back to stored prompt (regardless of queueEnabled)
 		if ( isAiStep ) {
 			return localUserMessage;
 		}
