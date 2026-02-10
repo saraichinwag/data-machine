@@ -82,6 +82,9 @@ export default function FlowStepCard( {
 	const [ localAuthToken, setLocalAuthToken ] = useState(
 		flowStepConfig?.handler_config?.auth_token || ''
 	);
+	const [ localReplyTo, setLocalReplyTo ] = useState(
+		flowStepConfig?.handler_config?.reply_to || ''
+	);
 	const [ isSaving, setIsSaving ] = useState( false );
 	const [ error, setError ] = useState( null );
 	const saveTimeout = useRef( null );
@@ -116,6 +119,10 @@ export default function FlowStepCard( {
 	useEffect( () => {
 		setLocalAuthToken( flowStepConfig?.handler_config?.auth_token || '' );
 	}, [ flowStepConfig?.handler_config?.auth_token ] );
+
+	useEffect( () => {
+		setLocalReplyTo( flowStepConfig?.handler_config?.reply_to || '' );
+	}, [ flowStepConfig?.handler_config?.reply_to ] );
 
 	/**
 	 * Save user message to queue (add if empty, update index 0 if exists)
@@ -251,6 +258,7 @@ export default function FlowStepCard( {
 							prompt: value,
 							auth_header_name: localAuthHeaderName,
 							auth_token: localAuthToken,
+							reply_to: localReplyTo,
 						},
 					},
 					() => setLocalAgentPingPrompt( localAgentPingPrompt )
@@ -265,6 +273,7 @@ export default function FlowStepCard( {
 			localAgentPingPrompt,
 			localAuthHeaderName,
 			localAuthToken,
+			localReplyTo,
 		]
 	);
 
@@ -284,6 +293,7 @@ export default function FlowStepCard( {
 							prompt: localAgentPingPrompt,
 							auth_header_name: localAuthHeaderName,
 							auth_token: localAuthToken,
+							reply_to: localReplyTo,
 						},
 					},
 					() => setLocalWebhookUrl( localWebhookUrl )
@@ -296,6 +306,7 @@ export default function FlowStepCard( {
 			localWebhookUrl,
 			localAuthHeaderName,
 			localAuthToken,
+			localReplyTo,
 		]
 	);
 
@@ -315,6 +326,7 @@ export default function FlowStepCard( {
 							prompt: localAgentPingPrompt,
 							auth_header_name: value,
 							auth_token: localAuthToken,
+							reply_to: localReplyTo,
 						},
 					},
 					() => setLocalAuthHeaderName( localAuthHeaderName )
@@ -327,6 +339,7 @@ export default function FlowStepCard( {
 			localAgentPingPrompt,
 			localAuthToken,
 			localAuthHeaderName,
+			localReplyTo,
 		]
 	);
 
@@ -346,6 +359,7 @@ export default function FlowStepCard( {
 							prompt: localAgentPingPrompt,
 							auth_header_name: localAuthHeaderName,
 							auth_token: value,
+							reply_to: localReplyTo,
 						},
 					},
 					() => setLocalAuthToken( localAuthToken )
@@ -358,6 +372,40 @@ export default function FlowStepCard( {
 			localAgentPingPrompt,
 			localAuthHeaderName,
 			localAuthToken,
+			localReplyTo,
+		]
+	);
+
+	const handleReplyToChange = useCallback(
+		( value ) => {
+			setLocalReplyTo( value );
+
+			if ( saveTimeout.current ) {
+				clearTimeout( saveTimeout.current );
+			}
+
+			saveTimeout.current = setTimeout( () => {
+				saveStepConfig(
+					{
+						handler_config: {
+							webhook_url: localWebhookUrl,
+							prompt: localAgentPingPrompt,
+							auth_header_name: localAuthHeaderName,
+							auth_token: localAuthToken,
+							reply_to: value,
+						},
+					},
+					() => setLocalReplyTo( localReplyTo )
+				);
+			}, AUTO_SAVE_DELAY );
+		},
+		[
+			saveStepConfig,
+			localWebhookUrl,
+			localAgentPingPrompt,
+			localAuthHeaderName,
+			localAuthToken,
+			localReplyTo,
 		]
 	);
 
@@ -568,6 +616,23 @@ export default function FlowStepCard( {
 								label={ __( 'Auth Token', 'data-machine' ) }
 								value={ localAuthToken }
 								onChange={ handleAuthTokenChange }
+							/>
+
+							<TextControl
+								label={ __(
+									'Reply To Channel',
+									'data-machine'
+								) }
+								value={ localReplyTo }
+								onChange={ handleReplyToChange }
+								placeholder={ __(
+									'e.g., Discord channel ID',
+									'data-machine'
+								) }
+								help={ __(
+									'Optional channel ID for response routing.',
+									'data-machine'
+								) }
 							/>
 
 							<TextareaControl
