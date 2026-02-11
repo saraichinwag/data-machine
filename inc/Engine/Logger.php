@@ -102,8 +102,8 @@ function datamachine_resolve_agent_type( array $context = array() ): string {
 		return $execution_context;
 	}
 
-	// Priority 3: Default to pipeline
-	return AgentType::PIPELINE;
+	// Priority 3: Default to system
+	return AgentType::SYSTEM;
 }
 
 /**
