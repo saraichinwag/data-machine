@@ -2,7 +2,7 @@
 
 All notable changes to Data Machine will be documented in this file. Also viewable at: 
 
-## Unreleased
+## [0.23.2] - 2026-02-16
 
 ### Fixed
 - Use correct Replicate models endpoint for image generation (fixes 422 errors)
