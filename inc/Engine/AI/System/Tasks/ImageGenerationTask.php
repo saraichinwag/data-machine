@@ -99,7 +99,7 @@ class ImageGenerationTask extends SystemTask {
 
 		switch ( $status ) {
 			case 'succeeded':
-				$this->handleSuccess( $jobId, $status_data, $model, $prompt, $aspect_ratio );
+				$this->handleSuccess( $jobId, $status_data, $model, $prompt, $aspect_ratio, $params );
 				break;
 
 			case 'failed':
@@ -129,8 +129,9 @@ class ImageGenerationTask extends SystemTask {
 	 * @param string $model       Model used for generation.
 	 * @param string $prompt      Original prompt.
 	 * @param string $aspectRatio Original aspect ratio.
+	 * @param array  $params      Task params (contains context.pipeline_job_id).
 	 */
-	private function handleSuccess( int $jobId, array $statusData, string $model, string $prompt, string $aspectRatio ): void {
+	protected function handleSuccess( int $jobId, array $statusData, string $model, string $prompt, string $aspectRatio, array $params ): void {
 		$output = $statusData['output'] ?? null;
 
 		// Handle different output formats (string URL or array)
@@ -213,7 +214,7 @@ class ImageGenerationTask extends SystemTask {
 	 * @param int   $attachmentId WordPress attachment ID.
 	 * @param array $params       Task params (contains context.pipeline_job_id).
 	 */
-	private function trySetFeaturedImage( int $jobId, int $attachmentId, array $params ): void {
+	protected function trySetFeaturedImage( int $jobId, int $attachmentId, array $params ): void {
 		$context         = $params['context'] ?? [];
 		$pipeline_job_id = $context['pipeline_job_id'] ?? 0;
 
@@ -326,7 +327,7 @@ class ImageGenerationTask extends SystemTask {
 	 * @param string $model     Model used for generation.
 	 * @return array|\WP_Error Array with attachment_id and attachment_url on success, WP_Error on failure.
 	 */
-	private function sideloadImage( string $image_url, string $prompt, string $model ): array|\WP_Error {
+	protected function sideloadImage( string $image_url, string $prompt, string $model ): array|\WP_Error {
 		// Ensure required WordPress functions are available
 		if ( ! function_exists( 'download_url' ) ) {
 			require_once ABSPATH . 'wp-admin/includes/file.php';
