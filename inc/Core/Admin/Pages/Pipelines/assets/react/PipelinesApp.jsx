@@ -15,12 +15,11 @@ import { Spinner, Notice, Button } from '@wordpress/components';
  * Internal dependencies
  */
 import { usePipelines, useCreatePipeline } from './queries/pipelines';
-import { useFlows, useUpdateFlowHandler } from './queries/flows';
+import { useFlows } from './queries/flows';
 /**
  * External dependencies
  */
 import { useSettings } from '@shared/queries/settings';
-import { useHandlers, useHandlerDetails } from './queries/handlers';
 import { useUIStore } from './stores/uiStore';
 import PipelineCard from './components/pipelines/PipelineCard';
 import PipelineSelector from './components/pipelines/PipelineSelector';
@@ -41,9 +40,6 @@ export default function PipelinesApp() {
 		selectedPipelineId,
 		setSelectedPipelineId,
 		openModal,
-		closeModal,
-		activeModal,
-		modalData,
 		isChatOpen,
 	} = useUIStore();
 
@@ -78,22 +74,11 @@ export default function PipelinesApp() {
 	const flows = useMemo( () => flowsData?.flows ?? [], [ flowsData ] );
 	const flowsTotal = flowsData?.total ?? 0;
 
-	const { data: handlers = {} } = useHandlers();
-
-	// Fetch handler details for settings modal (skip if already seeded in modalData)
-	const handlerSlug =
-		activeModal === MODAL_TYPES.HANDLER_SETTINGS &&
-		! modalData?.handlerDetails
-			? modalData?.handlerSlug
-			: null;
-	const { data: handlerDetails } = useHandlerDetails( handlerSlug );
 	const createPipelineMutation = useCreatePipeline( {
 		onSuccess: ( pipelineId ) => {
 			setSelectedPipelineId( pipelineId );
 		},
 	} );
-	const updateHandlerMutation = useUpdateFlowHandler();
-
 	// Find selected pipeline from pipelines array
 	const selectedPipeline = pipelines?.find( ( p ) =>
 		isSameId( p.pipeline_id, selectedPipelineId )
@@ -102,63 +87,6 @@ export default function PipelinesApp() {
 	const selectedPipelineError = null; // No separate error for selected pipeline
 
 	const [ isCreatingPipeline, setIsCreatingPipeline ] = useState( false );
-
-	/**
-	 * Modal callback handlers
-	 */
-	const handleModalSuccess = useCallback( () => {
-		closeModal();
-	}, [ closeModal ] );
-
-	const handleHandlerSelected = useCallback(
-		async ( selectedHandlerSlug ) => {
-			// First persist handler selection to flow step
-			const result = await updateHandlerMutation.mutateAsync( {
-				flowStepId: modalData.flowStepId,
-				handlerSlug: selectedHandlerSlug,
-				settings: {},
-				pipelineId: modalData.pipelineId,
-				stepType: modalData.stepType,
-			} );
-
-			if ( ! result || ! result.success ) {
-				const message =
-					result?.message ||
-					'Failed to assign handler to this flow step.';
-				throw new Error( message );
-			}
-
-			// On success, open handler settings modal with updated config
-			openModal( MODAL_TYPES.HANDLER_SETTINGS, {
-				...modalData,
-				handlerSlug: selectedHandlerSlug,
-				currentSettings:
-					result?.data?.step_config?.handler_config || {},
-				// Don't seed handlerDetails - let the hook fetch the complete details to ensure we have the settings schema
-				// handlerDetails: result?.data?.handler_settings_display ?? null,
-			} );
-		},
-		[ openModal, modalData, updateHandlerMutation ]
-	);
-
-	const handleChangeHandler = useCallback( () => {
-		openModal( MODAL_TYPES.HANDLER_SELECTION, modalData );
-	}, [ openModal, modalData ] );
-
-	const handleOAuthConnect = useCallback(
-		( handlerSlug, handlerInfo ) => {
-			openModal( MODAL_TYPES.OAUTH, {
-				...modalData,
-				handlerSlug,
-				handlerInfo,
-			} );
-		},
-		[ openModal, modalData ]
-	);
-
-	const handleBackToSettings = useCallback( () => {
-		openModal( MODAL_TYPES.HANDLER_SETTINGS, modalData );
-	}, [ openModal, modalData ] );
 
 	/**
 	 * Set selected pipeline when pipelines load or when selected pipeline is deleted.
@@ -288,18 +216,7 @@ export default function PipelinesApp() {
 					onFlowsPageChange={ setFlowsPage }
 				/>
 
-				<ModalManager
-					pipelines={ pipelines }
-					handlers={ handlers }
-					handlerDetails={ handlerDetails }
-					pipelineConfig={ selectedPipeline?.pipeline_config || {} }
-					flows={ flows }
-					onModalSuccess={ handleModalSuccess }
-					onHandlerSelected={ handleHandlerSelected }
-					onChangeHandler={ handleChangeHandler }
-					onOAuthConnect={ handleOAuthConnect }
-					onBackToSettings={ handleBackToSettings }
-				/>
+				<ModalManager />
 			</>
 		);
 	};
