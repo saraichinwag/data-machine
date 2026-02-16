@@ -2,7 +2,10 @@
 
 All notable changes to Data Machine will be documented in this file. Also viewable at: 
 
-## [Unreleased]
+## [0.22.4] - 2026-02-16
+
+### Changed
+- Refactored image generation as ability primitive; tool wraps it
 
 ## [0.22.3] - 2026-02-15
 
