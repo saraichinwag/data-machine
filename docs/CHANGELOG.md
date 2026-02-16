@@ -2,6 +2,24 @@
 
 All notable changes to Data Machine will be documented in this file. Also viewable at: 
 
+## [0.23.0] - 2026-02-16
+
+### Added
+- System Agent architecture with task-based async processing
+- Image generation tool (global)
+- Queue validator tool for duplicate detection
+- site_url and wp_path in Agent Ping payload
+- flows show alias for flows get
+
+### Changed
+- Alt text generation refactored as ability primitive
+- Image generation refactored as ability primitive; tool wraps it
+
+### Fixed
+- Deferred ability instantiation to init hook (textdomain notice on WP 6.7+)
+- Deferred admin page filter registration to init hook
+- Synced DATAMACHINE_VERSION constant
+
 ## [0.22.4] - 2026-02-16
 
 ### Changed
