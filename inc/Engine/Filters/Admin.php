@@ -157,27 +157,6 @@ function datamachine_get_enabled_admin_pages() {
 }
 
 /**
- * Get enabled general AI tools (non-handler-specific).
- */
-function datamachine_get_enabled_global_tools() {
-	$settings  = \DataMachine\Core\PluginSettings::all();
-	$all_tools = apply_filters( 'chubes_ai_tools', array() );
-
-	$global_tools = array_filter(
-		$all_tools,
-		function ( $tool_config ) {
-			return ! isset( $tool_config['handler'] );
-		}
-	);
-
-	if ( empty( $settings['disabled_tools'] ) ) {
-		return $global_tools;
-	}
-
-	return array_diff_key( $global_tools, array_filter( $settings['disabled_tools'] ) );
-}
-
-/**
  * Render admin page content using unified configuration.
  *
  * @param array  $page_config Page configuration
