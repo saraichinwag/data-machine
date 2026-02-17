@@ -109,6 +109,7 @@ class PipelineSystemPromptDirective implements \DataMachine\Engine\AI\Directives
 					'pipeline_step_id' => $step_pipeline_step_id,
 					'step_type'        => $step_config['step_type'] ?? '',
 					'handler_slug'     => $step_config['handler_slug'] ?? '',
+					'handler_slugs'    => $step_config['handler_slugs'] ?? array(),
 				);
 			}
 		}
@@ -116,21 +117,30 @@ class PipelineSystemPromptDirective implements \DataMachine\Engine\AI\Directives
 
 		// Build workflow visualization
 		$workflow_parts = array();
+		$handler_abilities = new HandlerAbilities();
+
 		foreach ( $sorted_steps as $step_data ) {
 			$step_type             = $step_data['step_type'];
 			$handler_slug          = $step_data['handler_slug'];
+			$handler_slugs         = $step_data['handler_slugs'];
 			$step_pipeline_step_id = $step_data['pipeline_step_id'];
 
 			if ( 'ai' === $step_type ) {
-				// Show "YOU ARE HERE" for currently executing AI step
+				// Show "YOU ARE HERE" for currently executing AI step.
 				$is_current       = ( $current_pipeline_step_id && $step_pipeline_step_id === $current_pipeline_step_id );
 				$workflow_parts[] = $is_current ? 'AI (YOU ARE HERE)' : 'AI';
+			} elseif ( ! empty( $handler_slugs ) && count( $handler_slugs ) > 1 ) {
+				// Multi-handler step: show all handler labels.
+				$labels = array();
+				foreach ( $handler_slugs as $slug ) {
+					$handler_info = $handler_abilities->getHandler( $slug, $step_type );
+					$labels[]     = strtoupper( $handler_info['label'] ?? $slug );
+				}
+				$workflow_parts[] = implode( '+', $labels ) . ' ' . strtoupper( $step_type );
 			} elseif ( $handler_slug ) {
-				// Get handler label via abilities
-				$handler_abilities = new HandlerAbilities();
-				$handler_info      = $handler_abilities->getHandler( $handler_slug, $step_type );
-				$label             = strtoupper( $handler_info['label'] ?? 'UNKNOWN' );
-				$workflow_parts[]  = $label . ' ' . strtoupper( $step_type );
+				$handler_info     = $handler_abilities->getHandler( $handler_slug, $step_type );
+				$label            = strtoupper( $handler_info['label'] ?? 'UNKNOWN' );
+				$workflow_parts[] = $label . ' ' . strtoupper( $step_type );
 			} else {
 				$workflow_parts[] = strtoupper( $step_type );
 			}

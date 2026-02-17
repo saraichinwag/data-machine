@@ -323,6 +323,151 @@ trait FlowStepHelpers {
 	}
 
 	/**
+	 * Add an additional handler to a flow step (multi-handler support).
+	 *
+	 * Adds handler_slug to handler_slugs array and stores its config in handler_configs.
+	 * Backward compatible: also keeps handler_slug pointing to the primary (first) handler.
+	 *
+	 * @param string $flow_step_id Flow step ID.
+	 * @param string $handler_slug Handler slug to add.
+	 * @param array  $handler_config Handler configuration for this handler.
+	 * @return bool Success status.
+	 */
+	protected function addHandler( string $flow_step_id, string $handler_slug, array $handler_config = array() ): bool {
+		$parts = apply_filters( 'datamachine_split_flow_step_id', null, $flow_step_id );
+		if ( ! $parts ) {
+			do_action( 'datamachine_log', 'error', 'Invalid flow_step_id format for add handler', array( 'flow_step_id' => $flow_step_id ) );
+			return false;
+		}
+		$flow_id = $parts['flow_id'];
+
+		$flow = $this->db_flows->get_flow( $flow_id );
+		if ( ! $flow ) {
+			do_action( 'datamachine_log', 'error', 'Flow not found for add handler', array( 'flow_id' => $flow_id, 'flow_step_id' => $flow_step_id ) );
+			return false;
+		}
+
+		$flow_config = $flow['flow_config'] ?? array();
+		if ( ! isset( $flow_config[ $flow_step_id ] ) ) {
+			do_action( 'datamachine_log', 'error', 'Flow step not found for add handler', array( 'flow_step_id' => $flow_step_id ) );
+			return false;
+		}
+
+		$step = &$flow_config[ $flow_step_id ];
+
+		// Build current handler_slugs array.
+		$existing_slugs = $step['handler_slugs'] ?? array();
+		if ( empty( $existing_slugs ) && ! empty( $step['handler_slug'] ) ) {
+			$existing_slugs = array( $step['handler_slug'] );
+		}
+
+		// Don't add duplicates.
+		if ( in_array( $handler_slug, $existing_slugs, true ) ) {
+			do_action( 'datamachine_log', 'warning', 'Handler already exists on step', array( 'flow_step_id' => $flow_step_id, 'handler_slug' => $handler_slug ) );
+			return true;
+		}
+
+		$existing_slugs[]       = $handler_slug;
+		$step['handler_slugs']  = $existing_slugs;
+
+		// Keep handler_slug pointing to first handler for backward compat.
+		if ( empty( $step['handler_slug'] ) ) {
+			$step['handler_slug'] = $existing_slugs[0];
+		}
+
+		// Store per-handler config.
+		$handler_configs = $step['handler_configs'] ?? array();
+		// Migrate existing handler_config to handler_configs if needed.
+		if ( empty( $handler_configs ) && ! empty( $step['handler_config'] ) && ! empty( $step['handler_slug'] ) ) {
+			$handler_configs[ $step['handler_slug'] ] = $step['handler_config'];
+		}
+
+		if ( ! empty( $handler_config ) ) {
+			$validated_config                = $this->handler_abilities->applyDefaults( $handler_slug, $handler_config );
+			$handler_configs[ $handler_slug ] = $validated_config;
+		} else {
+			$handler_configs[ $handler_slug ] = $this->handler_abilities->applyDefaults( $handler_slug, array() );
+		}
+
+		$step['handler_configs'] = $handler_configs;
+		$step['enabled']         = true;
+
+		unset( $step );
+
+		$success = $this->db_flows->update_flow( $flow_id, array( 'flow_config' => $flow_config ) );
+
+		if ( ! $success ) {
+			do_action( 'datamachine_log', 'error', 'Failed to add handler to flow step', array( 'flow_step_id' => $flow_step_id, 'handler_slug' => $handler_slug ) );
+			return false;
+		}
+
+		do_action(
+			'datamachine_log',
+			'info',
+			'Handler added to flow step',
+			array(
+				'flow_step_id'   => $flow_step_id,
+				'handler_slug'   => $handler_slug,
+				'total_handlers' => count( $existing_slugs ),
+			)
+		);
+
+		return true;
+	}
+
+	/**
+	 * Remove a handler from a multi-handler flow step.
+	 *
+	 * @param string $flow_step_id Flow step ID.
+	 * @param string $handler_slug Handler slug to remove.
+	 * @return bool Success status.
+	 */
+	protected function removeHandler( string $flow_step_id, string $handler_slug ): bool {
+		$parts = apply_filters( 'datamachine_split_flow_step_id', null, $flow_step_id );
+		if ( ! $parts ) {
+			return false;
+		}
+		$flow_id = $parts['flow_id'];
+
+		$flow = $this->db_flows->get_flow( $flow_id );
+		if ( ! $flow ) {
+			return false;
+		}
+
+		$flow_config = $flow['flow_config'] ?? array();
+		if ( ! isset( $flow_config[ $flow_step_id ] ) ) {
+			return false;
+		}
+
+		$step = &$flow_config[ $flow_step_id ];
+
+		$existing_slugs = $step['handler_slugs'] ?? array();
+		if ( empty( $existing_slugs ) && ! empty( $step['handler_slug'] ) ) {
+			$existing_slugs = array( $step['handler_slug'] );
+		}
+
+		$existing_slugs = array_values( array_filter( $existing_slugs, fn( $s ) => $s !== $handler_slug ) );
+
+		if ( empty( $existing_slugs ) ) {
+			do_action( 'datamachine_log', 'error', 'Cannot remove last handler from step', array( 'flow_step_id' => $flow_step_id ) );
+			return false;
+		}
+
+		$step['handler_slugs'] = $existing_slugs;
+		$step['handler_slug']  = $existing_slugs[0];
+
+		$handler_configs = $step['handler_configs'] ?? array();
+		unset( $handler_configs[ $handler_slug ] );
+		$step['handler_configs'] = $handler_configs;
+
+		$step['handler_config'] = $handler_configs[ $existing_slugs[0] ] ?? array();
+
+		unset( $step );
+
+		return $this->db_flows->update_flow( $flow_id, array( 'flow_config' => $flow_config ) );
+	}
+
+	/**
 	 * Update user message for an AI flow step.
 	 *
 	 * @param string $flow_step_id Flow step ID (format: pipeline_step_id_flow_id).

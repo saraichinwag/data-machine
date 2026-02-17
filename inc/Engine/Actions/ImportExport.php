@@ -168,6 +168,18 @@ class ImportExport {
 					$flow_step    = $flow_config[ $flow_step_id ] ?? array();
 
 					if ( ! empty( $flow_step['handler_slug'] ) ) {
+						$settings = array(
+							'handler_config' => $flow_step['handler_config'] ?? array(),
+						);
+
+						// Include multi-handler fields if present.
+						if ( ! empty( $flow_step['handler_slugs'] ) ) {
+							$settings['handler_slugs'] = $flow_step['handler_slugs'];
+						}
+						if ( ! empty( $flow_step['handler_configs'] ) ) {
+							$settings['handler_configs'] = $flow_step['handler_configs'];
+						}
+
 						$csv_rows[] = array(
 							$pipeline_id,
 							$pipeline['pipeline_name'],
@@ -177,7 +189,7 @@ class ImportExport {
 							$flow['flow_id'],
 							$flow['flow_name'],
 							$flow_step['handler_slug'],
-							wp_json_encode( $flow_step['handler_config'] ?? array() ),
+							wp_json_encode( $settings ),
 						);
 					}
 				}
