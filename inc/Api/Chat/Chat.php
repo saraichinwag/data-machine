@@ -622,13 +622,10 @@ class Chat {
 		}
 
 		$message = sanitize_textarea_field( wp_unslash( $request->get_param( 'message' ) ) );
-		// Set agent context for logging - all logs during this request go to chat log
-		AgentContext::set( AgentType::CHAT );
 
-		// Get provider and model with defaults
-		$provider  = $request->get_param( 'provider' );
-		$model     = $request->get_param( 'model' );
-		$max_turns = PluginSettings::get( 'max_turns', 12 );
+		// Get provider and model with defaults.
+		$provider = $request->get_param( 'provider' );
+		$model    = $request->get_param( 'model' );
 
 		if ( empty( $provider ) ) {
 			$provider = PluginSettings::get( 'default_provider', '' );
@@ -643,8 +640,9 @@ class Chat {
 		$session_id           = $request->get_param( 'session_id' );
 		$selected_pipeline_id = (int) $request->get_param( 'selected_pipeline_id' );
 		$user_id              = get_current_user_id();
+		$max_turns            = PluginSettings::get( 'max_turns', 12 );
 
-		// Validate that we have provider and model
+		// Validate that we have provider and model.
 		if ( empty( $provider ) ) {
 			return new WP_Error(
 				'provider_required',
@@ -661,8 +659,7 @@ class Chat {
 			);
 		}
 
-		$chat_db        = new ChatDatabase();
-		$is_new_session = false;
+		$chat_db = new ChatDatabase();
 
 		if ( $session_id ) {
 			$session = $chat_db->get_session( $session_id );
@@ -685,15 +682,14 @@ class Chat {
 
 			$messages = $session['messages'];
 		} else {
-			// Check for recent pending session to prevent duplicates from timeout retries
+			// Check for recent pending session to prevent duplicates from timeout retries.
 			// This handles the case where Cloudflare times out but PHP continues executing,
 			// creating orphaned sessions. On retry, we reuse the pending session.
 			$pending_session = $chat_db->get_recent_pending_session( $user_id, 600, AgentType::CHAT );
 
 			if ( $pending_session ) {
-				$session_id     = $pending_session['session_id'];
-				$messages       = $pending_session['messages'];
-				$is_new_session = false;
+				$session_id = $pending_session['session_id'];
+				$messages   = $pending_session['messages'];
 
 				do_action(
 					'datamachine_log',
@@ -724,14 +720,13 @@ class Chat {
 					);
 				}
 
-				$messages       = array();
-				$is_new_session = true;
+				$messages = array();
 			}
 		}
 
 		$messages[] = ConversationManager::buildConversationMessage( 'user', $message, array( 'type' => 'text' ) );
 
-		// Persist user message immediately so it survives navigation away from page
+		// Persist user message immediately so it survives navigation away from page.
 		$chat_db->update_session(
 			$session_id,
 			$messages,
@@ -744,127 +739,54 @@ class Chat {
 			$model
 		);
 
-		// Load available tools using ToolManager (filters out unconfigured/disabled tools)
-		$tool_manager = new ToolManager();
-		$all_tools    = $tool_manager->getAvailableToolsForChat();
-
-		try {
-			// Execute single turn (async turn-by-turn mode)
-			// Client polls /chat/continue until completion
-			$loop        = new AIConversationLoop();
-			$loop_result = $loop->execute(
-				$messages,
-				$all_tools,
-				$provider,
-				$model,
-				AgentType::CHAT,
-				array(
-					'session_id'           => $session_id,
-					'selected_pipeline_id' => $selected_pipeline_id ? $selected_pipeline_id : null,
-				),
-				$max_turns,
-				true // single_turn mode
-			);
-
-			// Check for errors
-			if ( isset( $loop_result['error'] ) ) {
-				// Update session with error status before returning
-				$chat_db->update_session(
-					$session_id,
-					$messages,
-					array(
-						'status'        => 'error',
-						'error_message' => $loop_result['error'],
-						'last_activity' => current_time( 'mysql', true ),
-						'message_count' => count( $messages ),
-					),
-					$provider,
-					$model
-				);
-
-				do_action(
-					'datamachine_log',
-					'error',
-					'Chat AI loop returned error',
-					array(
-						'session_id' => $session_id,
-						'error'      => $loop_result['error'],
-						'agent_type' => AgentType::CHAT,
-					)
-				);
-
-				return new WP_Error(
-					'chubes_ai_request_failed',
-					$loop_result['error'],
-					array( 'status' => 500 )
-				);
-			}
-		} catch ( \Throwable $e ) {
-			// Log the error
-			do_action(
-				'datamachine_log',
-				'error',
-				'Chat AI loop failed with exception',
-				array(
-					'session_id' => $session_id,
-					'error'      => $e->getMessage(),
-					'file'       => $e->getFile(),
-					'line'       => $e->getLine(),
-					'agent_type' => AgentType::CHAT,
-				)
-			);
-
-			// Update session with error status
-			$chat_db->update_session(
-				$session_id,
-				$messages,
-				array(
-					'status'        => 'error',
-					'error_message' => $e->getMessage(),
-					'last_activity' => current_time( 'mysql', true ),
-					'message_count' => count( $messages ),
-				),
-				$provider,
-				$model
-			);
-
-			return new WP_Error(
-				'chat_error',
-				$e->getMessage(),
-				array( 'status' => 500 )
-			);
-		} finally {
-			// Clear agent context after request completes
-			AgentContext::clear();
+		// Set request_id → session_id transient BEFORE AI loop to prevent duplicate
+		// sessions when retries arrive during processing (transient timing fix).
+		if ( $request_id ) {
+			$cache_key = 'datamachine_chat_request_' . $request_id;
+			set_transient( $cache_key, array( 'session_id' => $session_id, 'pending' => true ), 60 );
 		}
 
-		// Use final conversation state from loop
-		$messages      = $loop_result['messages'];
-		$final_content = $loop_result['final_content'];
-		$is_completed  = $loop_result['completed'] ?? false;
+		$result = self::executeConversationTurn(
+			$session_id,
+			$messages,
+			$provider,
+			$model,
+			array(
+				'single_turn'          => true,
+				'max_turns'            => $max_turns,
+				'selected_pipeline_id' => $selected_pipeline_id ? $selected_pipeline_id : null,
+				'agent_type'           => AgentType::CHAT,
+			)
+		);
+
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+
+		$is_completed = $result['completed'];
 
 		$metadata = array(
 			'status'            => $is_completed ? 'completed' : 'processing',
 			'last_activity'     => current_time( 'mysql', true ),
-			'message_count'     => count( $messages ),
-			'current_turn'      => $loop_result['turn_count'] ?? 1,
+			'message_count'     => count( $result['messages'] ),
+			'current_turn'      => $result['turn_count'],
 			'has_pending_tools' => ! $is_completed,
 		);
 
-		// Store selected pipeline for continuation
+		// Store selected pipeline for continuation.
 		if ( $selected_pipeline_id ) {
 			$metadata['selected_pipeline_id'] = $selected_pipeline_id;
 		}
 
 		$update_success = $chat_db->update_session(
 			$session_id,
-			$messages,
+			$result['messages'],
 			$metadata,
 			$provider,
 			$model
 		);
 
-		// After successful session update, trigger title generation for new sessions
+		// After successful session update, trigger title generation for new sessions.
 		if ( $update_success ) {
 			$session = $chat_db->get_session( $session_id );
 			if ( $session && empty( $session['title'] ) ) {
@@ -877,20 +799,20 @@ class Chat {
 
 		$response_data = array(
 			'session_id'   => $session_id,
-			'response'     => $final_content,
-			'tool_calls'   => $loop_result['last_tool_calls'],
-			'conversation' => $messages,
+			'response'     => $result['final_content'],
+			'tool_calls'   => $result['last_tool_calls'],
+			'conversation' => $result['messages'],
 			'metadata'     => $metadata,
 			'completed'    => $is_completed,
 			'max_turns'    => $max_turns,
-			'turn_number'  => $loop_result['turn_count'] ?? 1,
+			'turn_number'  => $result['turn_count'],
 		);
 
-		if ( isset( $loop_result['warning'] ) ) {
-			$response_data['warning'] = $loop_result['warning'];
+		if ( isset( $result['warning'] ) ) {
+			$response_data['warning'] = $result['warning'];
 		}
 
-		if ( isset( $loop_result['max_turns_reached'] ) ) {
+		if ( isset( $result['max_turns_reached'] ) && $result['max_turns_reached'] ) {
 			$response_data['max_turns_reached'] = true;
 		}
 
@@ -920,15 +842,12 @@ class Chat {
 	public static function handle_continue( WP_REST_Request $request ) {
 		$session_id = sanitize_text_field( $request->get_param( 'session_id' ) );
 		$user_id    = get_current_user_id();
-
-		// Set agent context for logging
-		AgentContext::set( AgentType::CHAT );
+		$max_turns  = PluginSettings::get( 'max_turns', 12 );
 
 		$chat_db = new ChatDatabase();
 		$session = $chat_db->get_session( $session_id );
 
 		if ( ! $session ) {
-			AgentContext::clear();
 			return new WP_Error(
 				'session_not_found',
 				__( 'Session not found', 'data-machine' ),
@@ -937,7 +856,6 @@ class Chat {
 		}
 
 		if ( (int) $session['user_id'] !== $user_id ) {
-			AgentContext::clear();
 			return new WP_Error(
 				'session_access_denied',
 				__( 'Access denied to this session', 'data-machine' ),
@@ -947,9 +865,8 @@ class Chat {
 
 		$metadata = $session['metadata'] ?? array();
 
-		// Check if session is already completed
+		// Check if session is already completed.
 		if ( isset( $metadata['status'] ) && 'completed' === $metadata['status'] && empty( $metadata['has_pending_tools'] ) ) {
-			AgentContext::clear();
 			return rest_ensure_response(
 				array(
 					'success' => true,
@@ -960,110 +877,46 @@ class Chat {
 						'tool_calls'    => array(),
 						'completed'     => true,
 						'turn_number'   => $metadata['current_turn'] ?? 0,
-						'max_turns'     => PluginSettings::get( 'max_turns', 12 ),
+						'max_turns'     => $max_turns,
 					),
 				)
 			);
 		}
 
-		$messages  = $session['messages'] ?? array();
-		$provider  = $session['provider'] ?? PluginSettings::get( 'default_provider', '' );
-		$model     = $session['model'] ?? PluginSettings::get( 'default_model', '' );
-		$max_turns = PluginSettings::get( 'max_turns', 12 );
-
-		// Track message count before turn
+		$messages             = $session['messages'] ?? array();
+		$provider             = $session['provider'] ?? PluginSettings::get( 'default_provider', '' );
+		$model                = $session['model'] ?? PluginSettings::get( 'default_model', '' );
 		$message_count_before = count( $messages );
-
-		// Load available tools
-		$tool_manager = new ToolManager();
-		$all_tools    = $tool_manager->getAvailableToolsForChat();
-
-		// Get selected pipeline from metadata if available
 		$selected_pipeline_id = $metadata['selected_pipeline_id'] ?? null;
 
-		try {
-			// Execute single turn
-			$loop        = new AIConversationLoop();
-			$loop_result = $loop->execute(
-				$messages,
-				$all_tools,
-				$provider,
-				$model,
-				AgentType::CHAT,
-				array(
-					'session_id'           => $session_id,
-					'selected_pipeline_id' => $selected_pipeline_id,
-				),
-				$max_turns,
-				true // single_turn mode
-			);
+		$result = self::executeConversationTurn(
+			$session_id,
+			$messages,
+			$provider,
+			$model,
+			array(
+				'single_turn'          => true,
+				'max_turns'            => $max_turns,
+				'selected_pipeline_id' => $selected_pipeline_id,
+				'agent_type'           => AgentType::CHAT,
+			)
+		);
 
-			if ( isset( $loop_result['error'] ) ) {
-				$chat_db->update_session(
-					$session_id,
-					$messages,
-					array(
-						'status'        => 'error',
-						'error_message' => $loop_result['error'],
-						'last_activity' => current_time( 'mysql', true ),
-					),
-					$provider,
-					$model
-				);
-
-				AgentContext::clear();
-				return new WP_Error(
-					'chubes_ai_request_failed',
-					$loop_result['error'],
-					array( 'status' => 500 )
-				);
-			}
-		} catch ( \Throwable $e ) {
-			do_action(
-				'datamachine_log',
-				'error',
-				'Chat continue failed with exception',
-				array(
-					'session_id' => $session_id,
-					'error'      => $e->getMessage(),
-					'agent_type' => AgentType::CHAT,
-				)
-			);
-
-			$chat_db->update_session(
-				$session_id,
-				$messages,
-				array(
-					'status'        => 'error',
-					'error_message' => $e->getMessage(),
-					'last_activity' => current_time( 'mysql', true ),
-				),
-				$provider,
-				$model
-			);
-
-			AgentContext::clear();
-			return new WP_Error(
-				'chat_continue_error',
-				$e->getMessage(),
-				array( 'status' => 500 )
-			);
-		} finally {
-			AgentContext::clear();
+		if ( is_wp_error( $result ) ) {
+			return $result;
 		}
 
-		// Extract new messages (added during this turn)
-		$updated_messages  = $loop_result['messages'];
-		$new_messages      = array_slice( $updated_messages, $message_count_before );
-		$is_completed      = $loop_result['completed'] ?? false;
-		$current_turn      = ( $metadata['current_turn'] ?? 0 ) + $loop_result['turn_count'];
-		$max_turns_reached = $loop_result['max_turns_reached'] ?? ( $current_turn >= $max_turns );
+		// Extract new messages (added during this turn).
+		$new_messages      = array_slice( $result['messages'], $message_count_before );
+		$is_completed      = $result['completed'];
+		$current_turn      = ( $metadata['current_turn'] ?? 0 ) + $result['turn_count'];
+		$max_turns_reached = $result['max_turns_reached'] ?? ( $current_turn >= $max_turns );
 
-		// Update session with new state
+		// Update session with new state.
 		$updated_metadata = array(
 			'status'            => $is_completed ? 'completed' : 'processing',
 			'last_activity'     => current_time( 'mysql', true ),
-			'message_count'     => count( $updated_messages ),
+			'message_count'     => count( $result['messages'] ),
 			'current_turn'      => $current_turn,
 			'has_pending_tools' => ! $is_completed,
 		);
@@ -1074,7 +927,7 @@ class Chat {
 
 		$chat_db->update_session(
 			$session_id,
-			$updated_messages,
+			$result['messages'],
 			$updated_metadata,
 			$provider,
 			$model
@@ -1086,8 +939,8 @@ class Chat {
 				'data'    => array(
 					'session_id'        => $session_id,
 					'new_messages'      => $new_messages,
-					'final_content'     => $loop_result['final_content'] ?? '',
-					'tool_calls'        => $loop_result['last_tool_calls'] ?? array(),
+					'final_content'     => $result['final_content'],
+					'tool_calls'        => $result['last_tool_calls'],
 					'completed'         => $is_completed,
 					'turn_number'       => $current_turn,
 					'max_turns'         => $max_turns,
@@ -1095,5 +948,141 @@ class Chat {
 				),
 			)
 		);
+	}
+
+	/**
+	 * Execute a single conversation turn with the AI loop.
+	 *
+	 * Encapsulates AgentContext management, tool loading, AIConversationLoop
+	 * execution, error handling, and session error updates. Used by handle_chat,
+	 * handle_continue, and handle_ping to eliminate duplication.
+	 *
+	 * @since 0.26.0
+	 *
+	 * @param string $session_id Session ID.
+	 * @param array  $messages   Current conversation messages.
+	 * @param string $provider   AI provider identifier.
+	 * @param string $model      AI model identifier.
+	 * @param array  $options    Optional settings {
+	 *     @type bool   $single_turn          Whether to run single turn (default false).
+	 *     @type int    $max_turns             Maximum turns allowed (default 12).
+	 *     @type int    $selected_pipeline_id  Currently selected pipeline ID.
+	 *     @type string $agent_type            Agent type for context (default AgentType::CHAT).
+	 * }
+	 * @return array|WP_Error Result array with messages, final_content, completed, turn_count,
+	 *                        last_tool_calls, and optional warning/max_turns_reached keys.
+	 *                        WP_Error on failure.
+	 */
+	private static function executeConversationTurn(
+		string $session_id,
+		array $messages,
+		string $provider,
+		string $model,
+		array $options = array()
+	): array|\WP_Error {
+		$single_turn          = $options['single_turn'] ?? false;
+		$max_turns            = $options['max_turns'] ?? PluginSettings::get( 'max_turns', 12 );
+		$selected_pipeline_id = $options['selected_pipeline_id'] ?? null;
+		$agent_type           = $options['agent_type'] ?? AgentType::CHAT;
+
+		$chat_db = new ChatDatabase();
+
+		AgentContext::set( $agent_type );
+
+		try {
+			$tool_manager = new ToolManager();
+			$all_tools    = $tool_manager->getAvailableToolsForChat();
+
+			$loop_context = array( 'session_id' => $session_id );
+			if ( $selected_pipeline_id ) {
+				$loop_context['selected_pipeline_id'] = $selected_pipeline_id;
+			}
+
+			$loop        = new AIConversationLoop();
+			$loop_result = $loop->execute(
+				$messages,
+				$all_tools,
+				$provider,
+				$model,
+				$agent_type,
+				$loop_context,
+				$max_turns,
+				$single_turn
+			);
+
+			if ( isset( $loop_result['error'] ) ) {
+				$chat_db->update_session(
+					$session_id,
+					$messages,
+					array(
+						'status'        => 'error',
+						'error_message' => $loop_result['error'],
+						'last_activity' => current_time( 'mysql', true ),
+						'message_count' => count( $messages ),
+					),
+					$provider,
+					$model
+				);
+
+				do_action(
+					'datamachine_log',
+					'error',
+					'AI loop returned error',
+					array(
+						'session_id' => $session_id,
+						'error'      => $loop_result['error'],
+						'agent_type' => $agent_type,
+					)
+				);
+
+				return new WP_Error(
+					'chubes_ai_request_failed',
+					$loop_result['error'],
+					array( 'status' => 500 )
+				);
+			}
+
+			return array(
+				'messages'          => $loop_result['messages'],
+				'final_content'     => $loop_result['final_content'],
+				'completed'         => $loop_result['completed'] ?? false,
+				'turn_count'        => $loop_result['turn_count'] ?? 1,
+				'last_tool_calls'   => $loop_result['last_tool_calls'] ?? array(),
+				'warning'           => $loop_result['warning'] ?? null,
+				'max_turns_reached' => $loop_result['max_turns_reached'] ?? false,
+			);
+		} catch ( \Throwable $e ) {
+			do_action(
+				'datamachine_log',
+				'error',
+				'AI loop failed with exception',
+				array(
+					'session_id' => $session_id,
+					'error'      => $e->getMessage(),
+					'agent_type' => $agent_type,
+				)
+			);
+
+			$chat_db->update_session(
+				$session_id,
+				$messages,
+				array(
+					'status'        => 'error',
+					'error_message' => $e->getMessage(),
+					'last_activity' => current_time( 'mysql', true ),
+					'message_count' => count( $messages ),
+				),
+				$provider,
+				$model
+			);
+
+			return new WP_Error(
+				'chat_error',
+				$e->getMessage(),
+				array( 'status' => 500 )
+			);
+		} finally {
+			AgentContext::clear();
+		}
 	}
 }
