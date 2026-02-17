@@ -50,9 +50,21 @@ class UpdateFlowStepAbility {
 								'type'        => 'object',
 								'description' => __( 'Handler configuration settings to merge', 'data-machine' ),
 							),
-							'user_message'   => array(
+							'user_message'        => array(
 								'type'        => 'string',
 								'description' => __( 'User message for AI steps', 'data-machine' ),
+							),
+							'add_handler'         => array(
+								'type'        => 'string',
+								'description' => __( 'Add an additional handler to this step (multi-handler mode). Provide handler slug.', 'data-machine' ),
+							),
+							'add_handler_config'  => array(
+								'type'        => 'object',
+								'description' => __( 'Configuration for the handler being added via add_handler.', 'data-machine' ),
+							),
+							'remove_handler'      => array(
+								'type'        => 'string',
+								'description' => __( 'Remove a handler from this step (multi-handler mode). Provide handler slug to remove.', 'data-machine' ),
 							),
 						),
 					),
@@ -100,11 +112,13 @@ class UpdateFlowStepAbility {
 
 		$has_handler_update = ! empty( $handler_slug ) || ! empty( $handler_config );
 		$has_message_update = null !== $user_message;
+		$has_add_handler    = ! empty( $input['add_handler'] );
+		$has_remove_handler = ! empty( $input['remove_handler'] );
 
-		if ( ! $has_handler_update && ! $has_message_update ) {
+		if ( ! $has_handler_update && ! $has_message_update && ! $has_add_handler && ! $has_remove_handler ) {
 			return array(
 				'success' => false,
-				'error'   => 'At least one of handler_slug, handler_config, or user_message is required',
+				'error'   => 'At least one of handler_slug, handler_config, user_message, add_handler, or remove_handler is required',
 			);
 		}
 
@@ -159,6 +173,52 @@ class UpdateFlowStepAbility {
 			if ( ! empty( $handler_config ) ) {
 				$updated_fields[] = 'handler_config';
 			}
+		}
+
+		// Handle add_handler operation.
+		$add_handler = $input['add_handler'] ?? null;
+		if ( ! empty( $add_handler ) ) {
+			if ( ! $this->handler_abilities->handlerExists( $add_handler ) ) {
+				return array(
+					'success' => false,
+					'error'   => "Handler '{$add_handler}' not found",
+				);
+			}
+
+			$add_handler_config = $input['add_handler_config'] ?? array();
+			if ( ! empty( $add_handler_config ) ) {
+				$validation_result = $this->validateHandlerConfig( $add_handler, $add_handler_config );
+				if ( true !== $validation_result ) {
+					return array(
+						'success'        => false,
+						'error'          => $validation_result['error'],
+						'unknown_fields' => $validation_result['unknown_fields'],
+						'field_specs'    => $validation_result['field_specs'],
+					);
+				}
+			}
+
+			$success = $this->addHandler( $flow_step_id, $add_handler, $add_handler_config );
+			if ( ! $success ) {
+				return array(
+					'success' => false,
+					'error'   => "Failed to add handler '{$add_handler}' to step",
+				);
+			}
+			$updated_fields[] = 'add_handler:' . $add_handler;
+		}
+
+		// Handle remove_handler operation.
+		$remove_handler = $input['remove_handler'] ?? null;
+		if ( ! empty( $remove_handler ) ) {
+			$success = $this->removeHandler( $flow_step_id, $remove_handler );
+			if ( ! $success ) {
+				return array(
+					'success' => false,
+					'error'   => "Failed to remove handler '{$remove_handler}' from step. It may be the only handler.",
+				);
+			}
+			$updated_fields[] = 'remove_handler:' . $remove_handler;
 		}
 
 		if ( $has_message_update ) {
