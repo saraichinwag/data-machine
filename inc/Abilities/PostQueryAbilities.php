@@ -110,6 +110,73 @@ class PostQueryAbilities {
 					'meta'                => array( 'show_in_rest' => true ),
 				)
 			);
+
+			wp_register_ability(
+				'datamachine/list-posts',
+				array(
+					'label'               => __( 'List Posts', 'data-machine' ),
+					'description'         => __( 'List Data Machine posts with combinable filters (handler, flow, pipeline)', 'data-machine' ),
+					'category'            => 'datamachine',
+					'input_schema'        => array(
+						'type'       => 'object',
+						'properties' => array(
+							'handler'     => array(
+								'type'        => 'string',
+								'description' => __( 'Filter by handler slug', 'data-machine' ),
+							),
+							'flow_id'     => array(
+								'type'        => 'integer',
+								'description' => __( 'Filter by flow ID', 'data-machine' ),
+							),
+							'pipeline_id' => array(
+								'type'        => 'integer',
+								'description' => __( 'Filter by pipeline ID', 'data-machine' ),
+							),
+							'post_type'   => array(
+								'type'        => 'string',
+								'default'     => 'any',
+								'description' => __( 'Post type to query', 'data-machine' ),
+							),
+							'post_status' => array(
+								'type'        => 'string',
+								'default'     => 'publish',
+								'description' => __( 'Post status to query', 'data-machine' ),
+							),
+							'per_page'    => array(
+								'type'    => 'integer',
+								'default' => self::DEFAULT_PER_PAGE,
+								'minimum' => 1,
+								'maximum' => 100,
+							),
+							'offset'      => array(
+								'type'    => 'integer',
+								'default' => 0,
+							),
+							'orderby'     => array(
+								'type'    => 'string',
+								'default' => 'date',
+							),
+							'order'       => array(
+								'type'    => 'string',
+								'default' => 'DESC',
+								'enum'    => array( 'ASC', 'DESC' ),
+							),
+						),
+					),
+					'output_schema'       => array(
+						'type'       => 'object',
+						'properties' => array(
+							'posts'    => array( 'type' => 'array' ),
+							'total'    => array( 'type' => 'integer' ),
+							'per_page' => array( 'type' => 'integer' ),
+							'offset'   => array( 'type' => 'integer' ),
+						),
+					),
+					'execute_callback'    => array( $this, 'executeQueryPostsList' ),
+					'permission_callback' => fn() => PermissionHelper::can_manage(),
+					'meta'                => array( 'show_in_rest' => true ),
+				)
+			);
 		};
 
 		if ( doing_action( 'wp_abilities_api_init' ) ) {
@@ -192,6 +259,107 @@ class PostQueryAbilities {
 					'compare' => 'EXISTS',
 				),
 			),
+		);
+
+		$query = new \WP_Query( $args );
+
+		$posts = array();
+		foreach ( $query->posts as $post ) {
+			$posts[] = $this->format_post_result( $post );
+		}
+
+		return array(
+			'posts'    => $posts,
+			'total'    => $query->found_posts,
+			'per_page' => $per_page,
+			'offset'   => $offset,
+		);
+	}
+
+	/**
+	 * Query posts with combinable tracking filters.
+	 *
+	 * Supports any combination of handler, flow_id, and pipeline_id filters
+	 * applied as an AND meta_query. Omitted filters are ignored.
+	 *
+	 * @since 0.34.0
+	 *
+	 * @param array $input {
+	 *     @type string $handler     Handler slug to filter by.
+	 *     @type int    $flow_id     Flow ID to filter by.
+	 *     @type int    $pipeline_id Pipeline ID to filter by.
+	 *     @type string $post_type   Post type (default: 'any').
+	 *     @type string $post_status Post status (default: 'publish').
+	 *     @type int    $per_page    Results per page (default: 20, max: 100).
+	 *     @type int    $offset      Offset for pagination.
+	 *     @type string $orderby     Order by field (default: 'date').
+	 *     @type string $order       Sort direction (default: 'DESC').
+	 * }
+	 * @return array Result with posts array, total count, per_page, and offset.
+	 */
+	public function executeQueryPostsList( array $input ): array {
+		$handler     = sanitize_text_field( $input['handler'] ?? '' );
+		$flow_id     = (int) ( $input['flow_id'] ?? 0 );
+		$pipeline_id = (int) ( $input['pipeline_id'] ?? 0 );
+		$post_type   = $input['post_type'] ?? 'any';
+		$post_status = $input['post_status'] ?? 'publish';
+		$per_page    = min( max( (int) ( $input['per_page'] ?? self::DEFAULT_PER_PAGE ), 1 ), 100 );
+		$offset      = max( (int) ( $input['offset'] ?? 0 ), 0 );
+		$orderby     = $input['orderby'] ?? 'date';
+		$order       = strtoupper( $input['order'] ?? 'DESC' );
+
+		if ( ! in_array( $order, array( 'ASC', 'DESC' ), true ) ) {
+			$order = 'DESC';
+		}
+
+		// Build meta_query from provided filters.
+		$meta_query = array();
+
+		if ( ! empty( $handler ) ) {
+			$meta_query[] = array(
+				'key'     => PostTracking::HANDLER_META_KEY,
+				'value'   => $handler,
+				'compare' => '=',
+			);
+		}
+
+		if ( $flow_id > 0 ) {
+			$meta_query[] = array(
+				'key'     => PostTracking::FLOW_ID_META_KEY,
+				'value'   => $flow_id,
+				'compare' => '=',
+			);
+		}
+
+		if ( $pipeline_id > 0 ) {
+			$meta_query[] = array(
+				'key'     => PostTracking::PIPELINE_ID_META_KEY,
+				'value'   => $pipeline_id,
+				'compare' => '=',
+			);
+		}
+
+		// If no filters provided, require at least the handler meta key to exist
+		// (i.e. only show DM-managed posts).
+		if ( empty( $meta_query ) ) {
+			$meta_query[] = array(
+				'key'     => PostTracking::HANDLER_META_KEY,
+				'compare' => 'EXISTS',
+			);
+		}
+
+		if ( count( $meta_query ) > 1 ) {
+			$meta_query['relation'] = 'AND';
+		}
+
+		$args = array(
+			'post_type'      => $post_type,
+			'post_status'    => $post_status,
+			'posts_per_page' => $per_page,
+			'offset'         => $offset,
+			'orderby'        => $orderby,
+			'order'          => $order,
+			'meta_query'     => $meta_query,
 		);
 
 		$query = new \WP_Query( $args );
