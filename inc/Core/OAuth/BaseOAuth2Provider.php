@@ -227,6 +227,10 @@ abstract class BaseOAuth2Provider extends BaseAuthProvider {
 	 * The event fires at (token_expires_at - refresh_buffer), ensuring the token
 	 * is refreshed even if no one calls get_valid_access_token() for weeks.
 	 *
+	 * When the refresh window is already past (token expired or within buffer),
+	 * attempts an immediate on-demand refresh to self-heal rather than leaving
+	 * the proactive refresh chain permanently broken.
+	 *
 	 * @since 0.31.1
 	 * @return bool True if event was scheduled, false otherwise.
 	 */
@@ -245,65 +249,181 @@ abstract class BaseOAuth2Provider extends BaseAuthProvider {
 		$buffer     = $this->get_refresh_buffer_seconds();
 		$refresh_at = $expiry - $buffer;
 
-		// Only schedule if the refresh time is in the future.
-		if ( $refresh_at <= time() ) {
-			return false;
+		// Refresh window is in the future — schedule normally.
+		if ( $refresh_at > time() ) {
+			$scheduled = wp_schedule_single_event( $refresh_at, $hook );
+
+			if ( false !== $scheduled ) {
+				do_action(
+					'datamachine_log',
+					'debug',
+					'OAuth2: Scheduled proactive token refresh',
+					array(
+						'provider'   => $this->provider_slug,
+						'refresh_at' => wp_date( 'Y-m-d H:i:s', $refresh_at ),
+						'expires_at' => wp_date( 'Y-m-d H:i:s', $expiry ),
+					)
+				);
+			}
+
+			return false !== $scheduled;
 		}
 
-		$scheduled = wp_schedule_single_event( $refresh_at, $hook );
+		// Refresh window is in the past — attempt immediate recovery.
+		// This prevents a permanent dead-end where no future cron is scheduled.
+		do_action(
+			'datamachine_log',
+			'info',
+			'OAuth2: Refresh window passed, attempting immediate recovery',
+			array(
+				'provider'   => $this->provider_slug,
+				'expires_at' => wp_date( 'Y-m-d H:i:s', $expiry ),
+			)
+		);
 
-		if ( false !== $scheduled ) {
-			do_action(
-				'datamachine_log',
-				'debug',
-				'OAuth2: Scheduled proactive token refresh',
-				array(
-					'provider'   => $this->provider_slug,
-					'refresh_at' => wp_date( 'Y-m-d H:i:s', $refresh_at ),
-					'expires_at' => wp_date( 'Y-m-d H:i:s', $expiry ),
-				)
-			);
+		$token = $this->attempt_recovery_refresh();
+
+		if ( null !== $token ) {
+			// Recovery succeeded — attempt_recovery_refresh() saved the new token
+			// and called schedule_proactive_refresh() which re-entered this method.
+			// The new token's refresh_at is in the future, so the cron was scheduled
+			// via the normal path above.
+			return true;
 		}
 
-		return false !== $scheduled;
+		return false;
 	}
 
 	/**
 	 * Handle the proactive cron refresh event.
 	 *
 	 * Called automatically by WP-Cron when the scheduled event fires.
-	 * Uses get_valid_access_token() which handles the refresh and re-scheduling.
+	 *
+	 * If the token is still valid (or within buffer), delegates to
+	 * get_valid_access_token() which handles refresh and re-scheduling.
+	 *
+	 * If the token is already expired (cron window was missed), attempts
+	 * a recovery refresh instead of giving up. This prevents the refresh
+	 * chain from being permanently broken when WP-Cron misses its window.
 	 *
 	 * @since 0.31.1
 	 */
 	public function handle_cron_refresh(): void {
-		if ( ! $this->is_authenticated() ) {
+		$account = $this->get_account();
+
+		// No account data at all — nothing to refresh.
+		if ( empty( $account ) || ! is_array( $account ) || empty( $account['access_token'] ) ) {
 			do_action(
 				'datamachine_log',
 				'debug',
-				'OAuth2: Cron refresh skipped — not authenticated',
+				'OAuth2: Cron refresh skipped — no account data',
 				array( 'provider' => $this->provider_slug )
 			);
 			return;
 		}
 
+		// Try the normal path first (handles both valid and expired tokens).
 		$token = $this->get_valid_access_token();
 
-		if ( null === $token ) {
-			do_action(
-				'datamachine_log',
-				'error',
-				'OAuth2: Cron refresh failed — token expired and refresh failed',
-				array( 'provider' => $this->provider_slug )
-			);
-		} else {
+		if ( null !== $token ) {
 			do_action(
 				'datamachine_log',
 				'info',
 				'OAuth2: Cron refresh completed',
 				array( 'provider' => $this->provider_slug )
 			);
+			return;
 		}
+
+		// get_valid_access_token() returned null — token is expired and refresh failed.
+		// Fire the failure hook so external systems can react.
+		do_action(
+			'datamachine_log',
+			'error',
+			'OAuth2: Cron refresh failed — token expired and refresh failed. Re-authorize in WP Admin > Data Machine > Settings.',
+			array( 'provider' => $this->provider_slug )
+		);
+
+		/**
+		 * Fires when an OAuth2 token refresh fails and the token is expired.
+		 *
+		 * External systems (agent pings, notifications, admin notices) can
+		 * hook into this to alert the user that re-authorization is needed.
+		 *
+		 * @since 0.32.0
+		 * @param string $provider_slug The provider that failed (e.g. 'reddit', 'pinterest').
+		 * @param array  $account       The account data at the time of failure.
+		 */
+		do_action( 'datamachine_oauth_refresh_failed', $this->provider_slug, $account );
+	}
+
+	/**
+	 * Attempt to recover from an expired token by performing an immediate refresh.
+	 *
+	 * Used by schedule_proactive_refresh() when the refresh window has passed.
+	 * Delegates to do_refresh_token() and saves the new token on success.
+	 *
+	 * On success, calls schedule_proactive_refresh() to re-establish the cron
+	 * chain. This re-enters schedule_proactive_refresh(), but the new token's
+	 * refresh window is in the future, so it takes the normal scheduling path
+	 * (no recursion beyond one level).
+	 *
+	 * @since 0.32.0
+	 * @return string|null New access token on success, null on failure.
+	 */
+	protected function attempt_recovery_refresh(): ?string {
+		$account = $this->get_account();
+		if ( empty( $account ) || ! is_array( $account ) || empty( $account['access_token'] ) ) {
+			return null;
+		}
+
+		$refreshed = $this->do_refresh_token( $account['access_token'] );
+
+		if ( null === $refreshed ) {
+			// Provider does not support refresh — cannot recover.
+			return null;
+		}
+
+		if ( ! is_wp_error( $refreshed ) && ! empty( $refreshed['access_token'] ) ) {
+			$account['access_token']      = $refreshed['access_token'];
+			$account['token_expires_at']  = $refreshed['expires_at'] ?? $account['token_expires_at'];
+			$account['last_refreshed_at'] = time();
+			$this->save_account( $account );
+
+			do_action(
+				'datamachine_log',
+				'info',
+				'OAuth2: Recovery refresh succeeded',
+				array(
+					'provider'   => $this->provider_slug,
+					'expires_at' => $account['token_expires_at'],
+				)
+			);
+
+			// Schedule proactive refresh for the new token's expiry.
+			// This is safe because the new token's refresh_at should be in the future.
+			$this->schedule_proactive_refresh();
+
+			return $refreshed['access_token'];
+		}
+
+		// Refresh failed — fire the failure hook.
+		$error_message = is_wp_error( $refreshed ) ? $refreshed->get_error_message() : 'Unknown error';
+
+		do_action(
+			'datamachine_log',
+			'error',
+			'OAuth2: Recovery refresh failed. Re-authorize in WP Admin > Data Machine > Settings.',
+			array(
+				'provider' => $this->provider_slug,
+				'error'    => $error_message,
+			)
+		);
+
+		/** This action is documented in handle_cron_refresh(). */
+		do_action( 'datamachine_oauth_refresh_failed', $this->provider_slug, $account );
+
+		return null;
 	}
 
 	/**
