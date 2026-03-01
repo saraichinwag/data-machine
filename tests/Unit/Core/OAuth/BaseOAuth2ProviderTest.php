@@ -354,8 +354,46 @@ class BaseOAuth2ProviderTest extends WP_UnitTestCase {
 		$this->assertFalse( $result );
 	}
 
-	public function test_schedule_proactive_refresh_returns_false_when_past(): void {
+	public function test_schedule_proactive_refresh_attempts_recovery_when_past(): void {
 		// Token expires in 2 days — refresh time would be (2d - 7d) = -5d, which is in the past.
+		// With recovery, the provider should attempt an immediate refresh.
+		$this->provider->save_account( array(
+			'access_token'    => 'tok_123',
+			'token_expires_at' => time() + ( 2 * DAY_IN_SECONDS ),
+		) );
+
+		$result = $this->provider->schedule_proactive_refresh();
+
+		// Recovery refresh succeeds — new token gets a future cron scheduled.
+		$this->assertTrue( $result );
+		$this->assertSame( 1, $this->provider->refresh_call_count );
+
+		// New token should be saved.
+		$account = $this->provider->get_account();
+		$this->assertSame( 'refreshed_tok_999', $account['access_token'] );
+
+		// A cron event should now be scheduled for the new token.
+		$next = wp_next_scheduled( $this->provider->get_cron_hook_name() );
+		$this->assertNotFalse( $next );
+	}
+
+	public function test_schedule_proactive_refresh_returns_false_when_recovery_fails(): void {
+		$this->provider->refresh_behavior = 'error';
+		// Token expires in 2 days — refresh time in the past, and recovery will fail.
+		$this->provider->save_account( array(
+			'access_token'    => 'tok_123',
+			'token_expires_at' => time() + ( 2 * DAY_IN_SECONDS ),
+		) );
+
+		$result = $this->provider->schedule_proactive_refresh();
+
+		$this->assertFalse( $result );
+		$this->assertSame( 1, $this->provider->refresh_call_count );
+	}
+
+	public function test_schedule_proactive_refresh_returns_false_when_unsupported(): void {
+		$this->provider->refresh_behavior = 'unsupported';
+		// Token expires in 2 days — refresh time in the past, provider doesn't support refresh.
 		$this->provider->save_account( array(
 			'access_token'    => 'tok_123',
 			'token_expires_at' => time() + ( 2 * DAY_IN_SECONDS ),
@@ -445,11 +483,46 @@ class BaseOAuth2ProviderTest extends WP_UnitTestCase {
 		$this->assertSame( 'refreshed_tok_999', $account['access_token'] );
 	}
 
-	public function test_cron_refresh_skips_when_not_authenticated(): void {
-		// No account data — not authenticated.
+	public function test_cron_refresh_skips_when_no_account_data(): void {
+		// No account data at all — nothing to refresh.
 		$this->provider->handle_cron_refresh();
 
 		$this->assertSame( 0, $this->provider->refresh_call_count );
+	}
+
+	public function test_cron_refresh_recovers_expired_token(): void {
+		// Token is expired — cron window was missed.
+		$this->provider->save_account( array(
+			'access_token'    => 'tok_expired',
+			'token_expires_at' => time() - 3600,
+		) );
+
+		$this->provider->handle_cron_refresh();
+
+		// Should have attempted refresh via get_valid_access_token().
+		$this->assertSame( 1, $this->provider->refresh_call_count );
+		$account = $this->provider->get_account();
+		$this->assertSame( 'refreshed_tok_999', $account['access_token'] );
+	}
+
+	public function test_cron_refresh_fires_failure_hook_on_expired_refresh_failure(): void {
+		$this->provider->refresh_behavior = 'error';
+		$this->provider->save_account( array(
+			'access_token'    => 'tok_dead',
+			'token_expires_at' => time() - 3600,
+		) );
+
+		$hook_fired   = false;
+		$hook_provider = '';
+		add_action( 'datamachine_oauth_refresh_failed', function ( $provider_slug ) use ( &$hook_fired, &$hook_provider ) {
+			$hook_fired    = true;
+			$hook_provider = $provider_slug;
+		}, 10, 2 );
+
+		$this->provider->handle_cron_refresh();
+
+		$this->assertTrue( $hook_fired );
+		$this->assertSame( 'test_oauth2', $hook_provider );
 	}
 
 	// -------------------------------------------------------------------------
