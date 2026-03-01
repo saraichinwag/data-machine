@@ -25,6 +25,162 @@ class PostsCommand extends BaseCommand {
 	private array $default_fields = array( 'id', 'title', 'post_type', 'status', 'handler', 'flow_id', 'pipeline_id', 'date' );
 
 	/**
+	 * List posts managed by Data Machine with combinable filters.
+	 *
+	 * Queries posts with optional handler, flow, and pipeline filters.
+	 * When multiple filters are provided, they combine with AND logic.
+	 * With no filters, lists all DM-managed posts (newest first).
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--handler=<handler_slug>]
+	 * : Filter by handler slug (e.g., "universal_web_scraper", "upsert_event").
+	 *
+	 * [--flow-id=<flow_id>]
+	 * : Filter by source flow ID.
+	 *
+	 * [--pipeline-id=<pipeline_id>]
+	 * : Filter by source pipeline ID.
+	 *
+	 * [--post_type=<post_type>]
+	 * : Post type to query.
+	 * ---
+	 * default: any
+	 * ---
+	 *
+	 * [--post_status=<status>]
+	 * : Post status to query.
+	 * ---
+	 * default: publish
+	 * ---
+	 *
+	 * [--per_page=<number>]
+	 * : Number of posts to return.
+	 * ---
+	 * default: 20
+	 * ---
+	 *
+	 * [--offset=<number>]
+	 * : Offset for pagination.
+	 * ---
+	 * default: 0
+	 * ---
+	 *
+	 * [--orderby=<field>]
+	 * : Order by field.
+	 * ---
+	 * default: date
+	 * options:
+	 *   - date
+	 *   - title
+	 *   - ID
+	 *   - modified
+	 * ---
+	 *
+	 * [--order=<direction>]
+	 * : Sort direction.
+	 * ---
+	 * default: DESC
+	 * options:
+	 *   - ASC
+	 *   - DESC
+	 * ---
+	 *
+	 * [--format=<format>]
+	 * : Output format.
+	 * ---
+	 * default: table
+	 * options:
+	 *   - table
+	 *   - json
+	 *   - csv
+	 *   - yaml
+	 *   - ids
+	 *   - count
+	 * ---
+	 *
+	 * [--fields=<fields>]
+	 * : Limit output to specific fields (comma-separated).
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     # List all DM-managed posts
+	 *     wp datamachine posts list
+	 *
+	 *     # List posts created by a specific flow
+	 *     wp datamachine posts list --flow-id=293
+	 *
+	 *     # List posts by handler type
+	 *     wp datamachine posts list --handler=upsert_event
+	 *
+	 *     # List posts by pipeline
+	 *     wp datamachine posts list --pipeline-id=72
+	 *
+	 *     # Combine filters (AND logic)
+	 *     wp datamachine posts list --flow-id=293 --handler=upsert_event
+	 *
+	 *     # Filter by post type and format
+	 *     wp datamachine posts list --handler=wordpress_publish --post_type=post --format=csv
+	 *
+	 *     # Paginate through results
+	 *     wp datamachine posts list --flow-id=7 --per_page=50 --offset=50
+	 *
+	 *     # Sort by title ascending
+	 *     wp datamachine posts list --orderby=title --order=ASC
+	 *
+	 *     # Output only IDs
+	 *     wp datamachine posts list --flow-id=7 --format=ids
+	 *
+	 * @subcommand list
+	 */
+	public function list_posts( array $args, array $assoc_args ): void {
+		$handler     = $assoc_args['handler'] ?? '';
+		$flow_id     = (int) ( $assoc_args['flow-id'] ?? 0 );
+		$pipeline_id = (int) ( $assoc_args['pipeline-id'] ?? 0 );
+		$post_type   = $assoc_args['post_type'] ?? 'any';
+		$post_status = $assoc_args['post_status'] ?? 'publish';
+		$per_page    = (int) ( $assoc_args['per_page'] ?? 20 );
+		$offset      = (int) ( $assoc_args['offset'] ?? 0 );
+		$orderby     = $assoc_args['orderby'] ?? 'date';
+		$order       = $assoc_args['order'] ?? 'DESC';
+		$format      = $assoc_args['format'] ?? 'table';
+
+		$ability = new \DataMachine\Abilities\PostQueryAbilities();
+		$result  = $ability->executeQueryPostsList(
+			array(
+				'handler'     => $handler,
+				'flow_id'     => $flow_id,
+				'pipeline_id' => $pipeline_id,
+				'post_type'   => $post_type,
+				'post_status' => $post_status,
+				'per_page'    => $per_page,
+				'offset'      => $offset,
+				'orderby'     => $orderby,
+				'order'       => $order,
+			)
+		);
+
+		$this->outputPostResult( $result, $assoc_args, $format );
+
+		// Show active filters in table mode for clarity.
+		if ( 'table' === $format ) {
+			$filters = array();
+			if ( ! empty( $handler ) ) {
+				$filters[] = "handler={$handler}";
+			}
+			if ( $flow_id > 0 ) {
+				$filters[] = "flow_id={$flow_id}";
+			}
+			if ( $pipeline_id > 0 ) {
+				$filters[] = "pipeline_id={$pipeline_id}";
+			}
+			if ( ! empty( $filters ) ) {
+				WP_CLI::log( 'Filters: ' . implode( ', ', $filters ) );
+			}
+		}
+	}
+
+	/**
 	 * Query posts by handler slug.
 	 *
 	 * ## OPTIONS
