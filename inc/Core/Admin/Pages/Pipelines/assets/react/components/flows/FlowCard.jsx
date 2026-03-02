@@ -191,6 +191,19 @@ function FlowCardContent( props ) {
 	);
 
 	/**
+	 * Handle memory files button click - opens flow memory files modal
+	 */
+	const handleMemoryFiles = useCallback(
+		( flowId ) => {
+			openModal( MODAL_TYPES.FLOW_MEMORY_FILES, {
+				flowId,
+				flowName: currentFlowData.flow_name,
+			} );
+		},
+		[ currentFlowData.flow_id, currentFlowData.flow_name, openModal ]
+	);
+
+	/**
 	 * Handle queue button click - opens queue management modal
 	 */
 	const handleQueue = useCallback(
@@ -284,6 +297,7 @@ function FlowCardContent( props ) {
 					onDuplicate={ handleDuplicate }
 					onRun={ handleRun }
 					onSchedule={ handleSchedule }
+					onMemoryFiles={ handleMemoryFiles }
 					runSuccess={ runSuccess }
 				/>
 

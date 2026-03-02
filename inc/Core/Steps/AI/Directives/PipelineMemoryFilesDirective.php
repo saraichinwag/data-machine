@@ -9,10 +9,11 @@
  * 1. Priority 10 - Plugin Core Directive (agent identity)
  * 2. Priority 20 - Core Memory Files (SOUL.md, USER.md, MEMORY.md, etc.)
  * 3. Priority 40 - Pipeline Memory Files (THIS CLASS - per-pipeline selectable)
- * 4. Priority 50 - Pipeline System Prompt (pipeline instructions)
- * 5. Priority 60 - Pipeline Context Files
- * 6. Priority 70 - Tool Definitions (available tools and workflow)
- * 7. Priority 80 - Site Context (WordPress metadata)
+ * 4. Priority 45 - Flow Memory Files (per-flow selectable)
+ * 5. Priority 50 - Pipeline System Prompt (pipeline instructions)
+ * 6. Priority 60 - Pipeline Context Files
+ * 7. Priority 70 - Tool Definitions (available tools and workflow)
+ * 8. Priority 80 - Site Context (WordPress metadata)
  *
  * @package DataMachine\Core\Steps\AI\Directives
  */
@@ -20,7 +21,7 @@
 namespace DataMachine\Core\Steps\AI\Directives;
 
 use DataMachine\Core\Database\Pipelines\Pipelines;
-use DataMachine\Core\FilesRepository\DirectoryManager;
+use DataMachine\Engine\AI\Directives\MemoryFilesReader;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -50,60 +51,11 @@ class PipelineMemoryFilesDirective implements \DataMachine\Engine\AI\Directives\
 
 		$memory_files = $db_pipelines->get_pipeline_memory_files( (int) $pipeline_id );
 
-		if ( empty( $memory_files ) ) {
-			return array();
-		}
-
-		$directory_manager = new DirectoryManager();
-		$agent_dir         = $directory_manager->get_agent_directory();
-		$outputs           = array();
-
-		foreach ( $memory_files as $filename ) {
-			$safe_filename = sanitize_file_name( $filename );
-			$filepath      = "{$agent_dir}/{$safe_filename}";
-
-			if ( ! file_exists( $filepath ) ) {
-				do_action(
-					'datamachine_log',
-					'warning',
-					'Pipeline Memory Files: File not found',
-					array(
-						'filename'    => $safe_filename,
-						'pipeline_id' => $pipeline_id,
-					)
-				);
-				continue;
-			}
-
-			$content = file_get_contents( $filepath );
-			if ( empty( trim( $content ) ) ) {
-				continue;
-			}
-
-			$outputs[] = array(
-				'type'    => 'system_text',
-				'content' => "## Memory File: {$safe_filename}\n{$content}",
-			);
-		}
-
-		if ( ! empty( $outputs ) ) {
-			do_action(
-				'datamachine_log',
-				'debug',
-				'Pipeline Memory Files: Injected memory files',
-				array(
-					'pipeline_id' => $pipeline_id,
-					'file_count'  => count( $outputs ),
-					'files'       => $memory_files,
-				)
-			);
-		}
-
-		return $outputs;
+		return MemoryFilesReader::read( $memory_files, 'Pipeline', (int) $pipeline_id );
 	}
 }
 
-// Register at Priority 40 — between core memory files (20) and pipeline system prompt (50).
+// Register at Priority 40 — between core memory files (20) and flow memory files (45).
 add_filter(
 	'datamachine_directives',
 	function ( $directives ) {

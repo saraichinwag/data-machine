@@ -103,6 +103,12 @@ class FlowsCommand extends BaseCommand {
 	 * [--step=<flow_step_id>]
 	 * : Target a specific flow step for prompt update or handler config update (auto-resolved if flow has exactly one handler step).
 	 *
+	 * [--add=<filename>]
+	 * : Attach a memory file to a flow (memory-files subcommand).
+	 *
+	 * [--remove=<filename>]
+	 * : Detach a memory file from a flow (memory-files subcommand).
+	 *
 	 * [--dry-run]
 	 * : Validate without creating (create subcommand).
 	 *
@@ -147,6 +153,15 @@ class FlowsCommand extends BaseCommand {
 	 *     # List handlers on a flow
 	 *     wp datamachine flows list-handlers 42
 	 *
+	 *     # List memory files for a flow
+	 *     wp datamachine flows memory-files 42
+	 *
+	 *     # Attach a memory file to a flow
+	 *     wp datamachine flows memory-files 42 --add=content-briefing.md
+	 *
+	 *     # Detach a memory file from a flow
+	 *     wp datamachine flows memory-files 42 --remove=content-briefing.md
+	 *
 	 */
 	public function __invoke( array $args, array $assoc_args ): void {
 		$flow_id     = null;
@@ -169,6 +184,16 @@ class FlowsCommand extends BaseCommand {
 		if ( ! empty( $args ) && 'webhook' === $args[0] ) {
 			$webhook = new WebhookCommand();
 			$webhook->dispatch( array_slice( $args, 1 ), $assoc_args );
+			return;
+		}
+
+		// Handle 'memory-files' subcommand.
+		if ( ! empty( $args ) && 'memory-files' === $args[0] ) {
+			if ( ! isset( $args[1] ) ) {
+				WP_CLI::error( 'Usage: wp datamachine flows memory-files <flow_id> [--add=<filename>] [--remove=<filename>]' );
+				return;
+			}
+			$this->memoryFiles( (int) $args[1], $assoc_args );
 			return;
 		}
 
@@ -353,8 +378,20 @@ class FlowsCommand extends BaseCommand {
 			return;
 		}
 
+		// Show memory files if attached.
+		$memory_files = $config['memory_files'] ?? array();
+		if ( ! empty( $memory_files ) ) {
+			WP_CLI::log( sprintf( 'Memory files: %s', implode( ', ', $memory_files ) ) );
+			WP_CLI::log( '' );
+		}
+
 		$rows = array();
 		foreach ( $config as $step_id => $step_data ) {
+			// Skip flow-level metadata keys — only display step configs.
+			if ( ! is_array( $step_data ) || ! isset( $step_data['step_type'] ) ) {
+				continue;
+			}
+
 			$step_type = $step_data['step_type'] ?? '';
 			$order     = $step_data['execution_order'] ?? '';
 			$slugs     = $step_data['handler_slugs'] ?? array();
@@ -900,6 +937,11 @@ class FlowsCommand extends BaseCommand {
 		$rows   = array();
 
 		foreach ( $config as $sid => $step ) {
+			// Skip flow-level metadata keys.
+			if ( ! is_array( $step ) || ! isset( $step['step_type'] ) ) {
+				continue;
+			}
+
 			if ( $step_id && $sid !== $step_id ) {
 				continue;
 			}
@@ -1008,5 +1050,104 @@ class FlowsCommand extends BaseCommand {
 			'step_id' => $handler_steps[0],
 			'error'   => null,
 		);
+	}
+
+	/**
+	 * Manage memory files attached to a flow.
+	 *
+	 * Without --add or --remove, lists current memory files.
+	 * With --add, attaches a file. With --remove, detaches a file.
+	 *
+	 * @param int   $flow_id    Flow ID.
+	 * @param array $assoc_args Arguments (add, remove, format).
+	 */
+	private function memoryFiles( int $flow_id, array $assoc_args ): void {
+		if ( $flow_id <= 0 ) {
+			WP_CLI::error( 'flow_id must be a positive integer' );
+			return;
+		}
+
+		$format   = $assoc_args['format'] ?? 'table';
+		$add_file = $assoc_args['add'] ?? null;
+		$rm_file  = $assoc_args['remove'] ?? null;
+
+		$db = new \DataMachine\Core\Database\Flows\Flows();
+
+		// Verify flow exists.
+		$flow = $db->get_flow( $flow_id );
+		if ( ! $flow ) {
+			WP_CLI::error( "Flow {$flow_id} not found" );
+			return;
+		}
+
+		$current_files = $db->get_flow_memory_files( $flow_id );
+
+		// Add a file.
+		if ( $add_file ) {
+			$add_file = sanitize_file_name( $add_file );
+
+			if ( in_array( $add_file, $current_files, true ) ) {
+				WP_CLI::warning( sprintf( '"%s" is already attached to flow %d.', $add_file, $flow_id ) );
+				return;
+			}
+
+			$current_files[] = $add_file;
+			$result          = $db->update_flow_memory_files( $flow_id, $current_files );
+
+			if ( ! $result ) {
+				WP_CLI::error( 'Failed to update memory files' );
+				return;
+			}
+
+			WP_CLI::success( sprintf( 'Added "%s" to flow %d. Files: %s', $add_file, $flow_id, implode( ', ', $current_files ) ) );
+			return;
+		}
+
+		// Remove a file.
+		if ( $rm_file ) {
+			$rm_file = sanitize_file_name( $rm_file );
+
+			if ( ! in_array( $rm_file, $current_files, true ) ) {
+				WP_CLI::warning( sprintf( '"%s" is not attached to flow %d.', $rm_file, $flow_id ) );
+				return;
+			}
+
+			$current_files = array_values( array_diff( $current_files, array( $rm_file ) ) );
+			$result        = $db->update_flow_memory_files( $flow_id, $current_files );
+
+			if ( ! $result ) {
+				WP_CLI::error( 'Failed to update memory files' );
+				return;
+			}
+
+			WP_CLI::success( sprintf( 'Removed "%s" from flow %d.', $rm_file, $flow_id ) );
+
+			if ( ! empty( $current_files ) ) {
+				WP_CLI::log( sprintf( 'Remaining: %s', implode( ', ', $current_files ) ) );
+			} else {
+				WP_CLI::log( 'No memory files attached.' );
+			}
+			return;
+		}
+
+		// List files.
+		if ( empty( $current_files ) ) {
+			WP_CLI::log( sprintf( 'Flow %d has no memory files attached.', $flow_id ) );
+			return;
+		}
+
+		if ( 'json' === $format ) {
+			WP_CLI::line( wp_json_encode( $current_files, JSON_PRETTY_PRINT ) );
+			return;
+		}
+
+		$items = array_map(
+			function ( $filename ) {
+				return array( 'filename' => $filename );
+			},
+			$current_files
+		);
+
+		\WP_CLI\Utils\format_items( $format, $items, array( 'filename' ) );
 	}
 }
