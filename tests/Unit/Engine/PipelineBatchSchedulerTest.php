@@ -303,6 +303,81 @@ class PipelineBatchSchedulerTest extends WP_UnitTestCase {
 		$this->assertStringContainsString( 'failed', $parent_job['status'] );
 	}
 
+	public function test_child_jobs_receive_per_item_engine_data(): void {
+		$parent_id = $this->create_parent_job();
+		$engine    = $this->make_engine_snapshot( $parent_id );
+
+		// Two packets with different _engine_data (per-item venue context).
+		$packet_a             = $this->make_data_packet( 'Show at Venue A' );
+		$packet_a['metadata']['_engine_data'] = array(
+			'venue'        => 'The Continental Club',
+			'venueCity'    => 'Austin',
+			'venueState'   => 'TX',
+			'venue_context' => array( 'name' => 'The Continental Club', 'city' => 'Austin' ),
+		);
+
+		$packet_b             = $this->make_data_packet( 'Show at Venue B' );
+		$packet_b['metadata']['_engine_data'] = array(
+			'venue'        => 'Hotel Vegas',
+			'venueCity'    => 'Austin',
+			'venueState'   => 'TX',
+			'venue_context' => array( 'name' => 'Hotel Vegas', 'city' => 'Austin' ),
+		);
+
+		$scheduler = new PipelineBatchScheduler();
+		$scheduler->fanOut( $parent_id, 'step_abc_123', array( $packet_a, $packet_b ), $engine );
+		$scheduler->processChunk( $parent_id );
+
+		// Get child jobs.
+		global $wpdb;
+		$table    = $wpdb->prefix . 'datamachine_jobs';
+		$children = $wpdb->get_results(
+			$wpdb->prepare( "SELECT job_id, label FROM {$table} WHERE parent_job_id = %d ORDER BY job_id", $parent_id ),
+			ARRAY_A
+		);
+
+		$this->assertCount( 2, $children );
+
+		// Child A should have Venue A's engine data.
+		$child_a_engine = datamachine_get_engine_data( (int) $children[0]['job_id'] );
+		$this->assertEquals( 'The Continental Club', $child_a_engine['venue'] );
+		$this->assertEquals( 'Austin', $child_a_engine['venueCity'] );
+		$this->assertEquals( 'The Continental Club', $child_a_engine['venue_context']['name'] );
+
+		// Child B should have Venue B's engine data.
+		$child_b_engine = datamachine_get_engine_data( (int) $children[1]['job_id'] );
+		$this->assertEquals( 'Hotel Vegas', $child_b_engine['venue'] );
+		$this->assertEquals( 'Austin', $child_b_engine['venueCity'] );
+		$this->assertEquals( 'Hotel Vegas', $child_b_engine['venue_context']['name'] );
+	}
+
+	public function test_child_jobs_work_without_engine_data_key(): void {
+		$parent_id = $this->create_parent_job();
+		$engine    = $this->make_engine_snapshot( $parent_id );
+
+		// Packet without _engine_data — should still work fine.
+		$packet = $this->make_data_packet( 'Basic Event' );
+
+		$scheduler = new PipelineBatchScheduler();
+		$scheduler->fanOut( $parent_id, 'step_abc_123', array( $packet ), $engine );
+		$scheduler->processChunk( $parent_id );
+
+		global $wpdb;
+		$table    = $wpdb->prefix . 'datamachine_jobs';
+		$children = $wpdb->get_results(
+			$wpdb->prepare( "SELECT job_id FROM {$table} WHERE parent_job_id = %d", $parent_id ),
+			ARRAY_A
+		);
+
+		$this->assertCount( 1, $children );
+
+		// Child should have the parent snapshot's keys but no extra seeded data.
+		$child_engine = datamachine_get_engine_data( (int) $children[0]['job_id'] );
+		$this->assertArrayHasKey( 'job', $child_engine );
+		$this->assertArrayHasKey( 'flow', $child_engine );
+		$this->assertArrayNotHasKey( 'venue', $child_engine );
+	}
+
 	public function test_on_child_complete_ignores_non_batch_parents(): void {
 		// Create a parent job WITHOUT batch metadata.
 		$parent_id = $this->create_parent_job();

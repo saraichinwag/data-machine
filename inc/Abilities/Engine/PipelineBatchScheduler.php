@@ -229,8 +229,9 @@ class PipelineBatchScheduler {
 	/**
 	 * Create a single child job for one DataPacket.
 	 *
-	 * Clones the parent's engine_data, stores the single DataPacket to
-	 * the filesystem, and schedules the next step via the normal engine path.
+	 * Clones the parent's engine_data, seeds per-item engine data from
+	 * the DataPacket's _engine_data metadata key, and schedules the next
+	 * step via the normal engine path.
 	 *
 	 * @param int    $parent_job_id     Parent job ID.
 	 * @param string $next_flow_step_id Next step to execute.
@@ -280,6 +281,16 @@ class PipelineBatchScheduler {
 			'created_at'    => current_time( 'mysql', true ),
 			'parent_job_id' => $parent_job_id,
 		);
+
+		// Seed per-item engine data from DataPacket metadata.
+		// Handlers put per-item context (venue data, source_url, etc.)
+		// into metadata['_engine_data'] so each child job gets its own
+		// copy instead of sharing the parent's (which would be the last
+		// item's data overwriting all previous items).
+		$item_engine_data = $single_packet['metadata']['_engine_data'] ?? array();
+		if ( ! empty( $item_engine_data ) && is_array( $item_engine_data ) ) {
+			$child_engine = array_merge( $child_engine, $item_engine_data );
+		}
 
 		datamachine_set_engine_data( $child_job_id, $child_engine );
 		$this->db_jobs->start_job( $child_job_id );
