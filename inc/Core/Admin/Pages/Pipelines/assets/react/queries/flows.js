@@ -24,6 +24,8 @@ import {
 	updateUserMessage,
 	updateFlowSchedule,
 	updateFlowStepConfig,
+	fetchFlowMemoryFiles,
+	updateFlowMemoryFiles,
 } from '../utils/api';
 import { isSameId, normalizeId } from '../utils/ids';
 
@@ -476,6 +478,30 @@ export const useUpdateFlowSchedule = () => {
 			}
 
 			setFlowInCache( queryClient, response.data );
+		},
+	} );
+};
+
+// Flow Memory Files
+export const useFlowMemoryFiles = ( flowId ) =>
+	useQuery( {
+		queryKey: [ 'flow-memory-files', flowId ],
+		queryFn: async () => {
+			const response = await fetchFlowMemoryFiles( flowId );
+			return response.success ? response.data : [];
+		},
+		enabled: !! flowId,
+	} );
+
+export const useUpdateFlowMemoryFiles = ( flowId ) => {
+	const queryClient = useQueryClient();
+	return useMutation( {
+		mutationFn: ( filenames ) =>
+			updateFlowMemoryFiles( flowId, filenames ),
+		onSuccess: () => {
+			queryClient.invalidateQueries( {
+				queryKey: [ 'flow-memory-files', flowId ],
+			} );
 		},
 	} );
 };

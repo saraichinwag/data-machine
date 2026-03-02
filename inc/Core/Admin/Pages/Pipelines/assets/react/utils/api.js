@@ -452,6 +452,29 @@ export const updatePipelineMemoryFiles = async ( pipelineId, memoryFiles ) => {
 };
 
 /**
+ * Fetch memory files for a flow
+ *
+ * @param {number} flowId - Flow ID
+ * @return {Promise<Object>} Array of memory filenames
+ */
+export const fetchFlowMemoryFiles = async ( flowId ) => {
+	return await client.get( `/flows/${ flowId }/memory-files` );
+};
+
+/**
+ * Update memory files for a flow
+ *
+ * @param {number}        flowId      - Flow ID
+ * @param {Array<string>} memoryFiles - Array of filenames
+ * @return {Promise<Object>} Update confirmation
+ */
+export const updateFlowMemoryFiles = async ( flowId, memoryFiles ) => {
+	return await client.put( `/flows/${ flowId }/memory-files`, {
+		memory_files: memoryFiles,
+	} );
+};
+
+/**
  * Fetch available agent files
  *
  * @return {Promise<Object>} Array of agent files

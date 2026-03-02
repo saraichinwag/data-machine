@@ -26,8 +26,9 @@ import { AUTO_SAVE_DELAY } from '../../utils/constants';
  * @param {Function} props.onDelete     - Delete handler.
  * @param {Function} props.onDuplicate  - Duplicate handler.
  * @param {Function} props.onRun        - Run handler.
- * @param {Function} props.onSchedule   - Schedule handler.
- * @param {boolean}  props.runSuccess   - Whether run was just successful.
+ * @param {Function} props.onSchedule    - Schedule handler.
+ * @param {Function} props.onMemoryFiles - Memory files handler.
+ * @param {boolean}  props.runSuccess    - Whether run was just successful.
  * @return {JSX.Element} Flow header.
  */
 export default function FlowHeader( {
@@ -38,6 +39,7 @@ export default function FlowHeader( {
 	onDuplicate,
 	onRun,
 	onSchedule,
+	onMemoryFiles,
 	runSuccess = false,
 } ) {
 	const [ localName, setLocalName ] = useState( flowName );
@@ -151,6 +153,13 @@ export default function FlowHeader( {
 					onClick={ () => onSchedule && onSchedule( flowId ) }
 				>
 					{ __( 'Schedule', 'data-machine' ) }
+				</Button>
+
+				<Button
+					variant="secondary"
+					onClick={ () => onMemoryFiles && onMemoryFiles( flowId ) }
+				>
+					{ __( 'Memory', 'data-machine' ) }
 				</Button>
 
 				<Button

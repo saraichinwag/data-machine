@@ -19,6 +19,7 @@ export const MODAL_TYPES = {
 	CONFIRM_DELETE: 'confirm-delete',
 	CONTEXT_FILES: 'context-files',
 	MEMORY_FILES: 'memory-files',
+	FLOW_MEMORY_FILES: 'flow-memory-files',
 };
 
 /**

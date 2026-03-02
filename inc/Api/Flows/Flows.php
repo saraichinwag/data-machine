@@ -183,6 +183,47 @@ class Flows {
 
 		register_rest_route(
 			'datamachine/v1',
+			'/flows/(?P<flow_id>\d+)/memory-files',
+			array(
+				array(
+					'methods'             => WP_REST_Server::READABLE,
+					'callback'            => array( self::class, 'handle_get_memory_files' ),
+					'permission_callback' => array( self::class, 'check_permission' ),
+					'args'                => array(
+						'flow_id' => array(
+							'required'          => true,
+							'type'              => 'integer',
+							'sanitize_callback' => 'absint',
+							'description'       => __( 'Flow ID', 'data-machine' ),
+						),
+					),
+				),
+				array(
+					'methods'             => WP_REST_Server::EDITABLE,
+					'callback'            => array( self::class, 'handle_update_memory_files' ),
+					'permission_callback' => array( self::class, 'check_permission' ),
+					'args'                => array(
+						'flow_id'      => array(
+							'required'          => true,
+							'type'              => 'integer',
+							'sanitize_callback' => 'absint',
+							'description'       => __( 'Flow ID', 'data-machine' ),
+						),
+						'memory_files' => array(
+							'required'    => true,
+							'type'        => 'array',
+							'description' => __( 'Array of agent memory filenames', 'data-machine' ),
+							'items'       => array(
+								'type' => 'string',
+							),
+						),
+					),
+				),
+			)
+		);
+
+		register_rest_route(
+			'datamachine/v1',
 			'/flows/problems',
 			array(
 				'methods'             => WP_REST_Server::READABLE,
@@ -490,6 +531,85 @@ class Flows {
 					'failing'       => $result['failing'] ?? array(),
 					'idle'          => $result['idle'] ?? array(),
 				),
+			)
+		);
+	}
+
+	/**
+	 * Handle get memory files request for a flow.
+	 *
+	 * GET /datamachine/v1/flows/{flow_id}/memory-files
+	 *
+	 * @param \WP_REST_Request $request REST request.
+	 * @return \WP_REST_Response|\WP_Error Response.
+	 */
+	public static function handle_get_memory_files( $request ) {
+		$flow_id = (int) $request->get_param( 'flow_id' );
+
+		$db_flows = new \DataMachine\Core\Database\Flows\Flows();
+		$flow     = $db_flows->get_flow( $flow_id );
+
+		if ( ! $flow ) {
+			return new \WP_Error(
+				'flow_not_found',
+				__( 'Flow not found.', 'data-machine' ),
+				array( 'status' => 404 )
+			);
+		}
+
+		$memory_files = $db_flows->get_flow_memory_files( $flow_id );
+
+		return rest_ensure_response(
+			array(
+				'success' => true,
+				'data'    => $memory_files,
+			)
+		);
+	}
+
+	/**
+	 * Handle update memory files request for a flow.
+	 *
+	 * PUT/POST /datamachine/v1/flows/{flow_id}/memory-files
+	 *
+	 * @param \WP_REST_Request $request REST request.
+	 * @return \WP_REST_Response|\WP_Error Response.
+	 */
+	public static function handle_update_memory_files( $request ) {
+		$flow_id      = (int) $request->get_param( 'flow_id' );
+		$params       = $request->get_json_params();
+		$memory_files = $params['memory_files'] ?? array();
+
+		$db_flows = new \DataMachine\Core\Database\Flows\Flows();
+		$flow     = $db_flows->get_flow( $flow_id );
+
+		if ( ! $flow ) {
+			return new \WP_Error(
+				'flow_not_found',
+				__( 'Flow not found.', 'data-machine' ),
+				array( 'status' => 404 )
+			);
+		}
+
+		// Sanitize filenames.
+		$memory_files = array_map( 'sanitize_file_name', $memory_files );
+		$memory_files = array_values( array_filter( $memory_files ) );
+
+		$result = $db_flows->update_flow_memory_files( $flow_id, $memory_files );
+
+		if ( ! $result ) {
+			return new \WP_Error(
+				'update_failed',
+				__( 'Failed to update memory files.', 'data-machine' ),
+				array( 'status' => 500 )
+			);
+		}
+
+		return rest_ensure_response(
+			array(
+				'success' => true,
+				'data'    => $memory_files,
+				'message' => __( 'Flow memory files updated successfully.', 'data-machine' ),
 			)
 		);
 	}

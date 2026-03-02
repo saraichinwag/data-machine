@@ -128,8 +128,19 @@ class Flows extends BaseRepository {
 	 * @param array $flow_config Decoded flow config from database.
 	 * @return array Normalized flow config.
 	 */
+	/**
+	 * Keys in flow_config that are flow-level metadata, not step configs.
+	 *
+	 * @var array
+	 */
+	private const FLOW_CONFIG_META_KEYS = array( 'memory_files' );
+
 	private function normalizeFlowConfig( array $flow_config ): array {
 		foreach ( $flow_config as $step_id => $step_config ) {
+			// Skip flow-level metadata keys — only normalize step configs.
+			if ( in_array( $step_id, self::FLOW_CONFIG_META_KEYS, true ) ) {
+				continue;
+			}
 			$flow_config[ $step_id ] = FlowStepNormalizer::normalizeHandlerFields( $step_config );
 		}
 		return $flow_config;
@@ -595,6 +606,56 @@ class Flows extends BaseRepository {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Get flow memory files from flow config.
+	 *
+	 * @param int $flow_id Flow ID.
+	 * @return array Array of memory filenames.
+	 */
+	public function get_flow_memory_files( int $flow_id ): array {
+		$flow = $this->get_flow( $flow_id );
+		if ( ! $flow ) {
+			return array();
+		}
+		return $flow['flow_config']['memory_files'] ?? array();
+	}
+
+	/**
+	 * Update flow memory files in flow config.
+	 *
+	 * @param int   $flow_id      Flow ID.
+	 * @param array $memory_files Array of memory filenames.
+	 * @return bool True on success, false on failure.
+	 */
+	public function update_flow_memory_files( int $flow_id, array $memory_files ): bool {
+		if ( empty( $flow_id ) ) {
+			return false;
+		}
+
+		// Read raw flow_config JSON to avoid normalization side effects.
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$raw_config_json = $this->wpdb->get_var(
+			$this->wpdb->prepare( 'SELECT flow_config FROM %i WHERE flow_id = %d', $this->table_name, $flow_id )
+		);
+
+		if ( null === $raw_config_json ) {
+			return false;
+		}
+
+		$flow_config                 = json_decode( $raw_config_json, true ) ?? array();
+		$flow_config['memory_files'] = $memory_files;
+
+		$result = $this->wpdb->update(
+			$this->table_name,
+			array( 'flow_config' => wp_json_encode( $flow_config ) ),
+			array( 'flow_id' => $flow_id ),
+			array( '%s' ),
+			array( '%d' )
+		);
+
+		return false !== $result;
 	}
 
 	/**
