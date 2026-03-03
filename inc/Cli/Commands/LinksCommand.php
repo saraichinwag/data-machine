@@ -538,8 +538,7 @@ class LinksCommand extends BaseCommand {
 	 * scores all other posts in the same category by overlap, and
 	 * appends a "Related Reading" section with the top matches.
 	 *
-	 * Bypasses the crosslinker System Agent entirely — safe to run
-	 * while issue #479 (template title bias) is open.
+	 * Bypasses the crosslinker System Agent entirely.
 	 *
 	 * ## OPTIONS
 	 *
@@ -555,8 +554,8 @@ class LinksCommand extends BaseCommand {
 	 * [--min-score=<number>]
 	 * : Minimum keyword overlap score to qualify as a match.
 	 *   Use 0 to allow category-sibling fallback when no keyword
-	 *   overlap exists (useful for single-keyword title categories
-	 *   like Cravings where all posts are topically related).
+	 *   overlap exists (useful for categories where all posts
+	 *   share a topical pattern).
 	 * ---
 	 * default: 0
 	 * ---
@@ -582,17 +581,17 @@ class LinksCommand extends BaseCommand {
 	 *
 	 * ## EXAMPLES
 	 *
-	 *     # Preview links for the Cravings category
-	 *     wp datamachine links inject-category --category=cravings --dry-run
+	 *     # Preview links for a category
+	 *     wp datamachine links inject-category --category=tutorials --dry-run
 	 *
-	 *     # Inject links for Cravings (orphans only, 3 links each)
-	 *     wp datamachine links inject-category --category=cravings --orphans-only
+	 *     # Inject links (orphans only, 3 links each)
+	 *     wp datamachine links inject-category --category=tutorials --orphans-only
 	 *
-	 *     # Process Science category with higher match threshold
-	 *     wp datamachine links inject-category --category=science --min-score=2
+	 *     # Process with higher match threshold
+	 *     wp datamachine links inject-category --category=reviews --min-score=2
 	 *
 	 *     # JSON output for scripting
-	 *     wp datamachine links inject-category --category=colors --dry-run --format=json
+	 *     wp datamachine links inject-category --category=news --dry-run --format=json
 	 *
 	 * @subcommand inject-category
 	 */

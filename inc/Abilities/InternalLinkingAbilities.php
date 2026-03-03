@@ -1167,8 +1167,7 @@ class InternalLinkingAbilities {
 			}
 
 			// Fallback: if fewer matches than needed, fill with random
-			// category siblings. All posts in the same category are related
-			// by topic — e.g. all "Why Am I Craving X?" posts.
+			// category siblings. Posts in the same category share a topic.
 			if ( count( $matches ) < $links_per_post && 0 === $min_score ) {
 				$used_ids    = array_column( $matches, 'post_id' );
 				$used_ids[]  = $post_id;
@@ -1258,8 +1257,12 @@ class InternalLinkingAbilities {
 	/**
 	 * Extract significant keywords from a post title.
 	 *
-	 * Strips common stop words, question patterns, and site-specific
+	 * Strips common stop words, question patterns, and configurable
 	 * prefixes to isolate the meaningful topic words.
+	 *
+	 * Use the `datamachine_title_strip_patterns` filter to add
+	 * site-specific patterns (e.g. "Why Am I Craving", "Spiritual
+	 * Meaning Of") without modifying this plugin.
 	 *
 	 * @since 0.34.0
 	 *
@@ -1269,25 +1272,15 @@ class InternalLinkingAbilities {
 	private static function extractTitleKeywords( string $title ): array {
 		$title = strtolower( $title );
 
-		// Remove common patterns from saraichinwag.com titles.
+		// Generic title patterns common across WordPress sites.
 		// Order matters — longer/more specific patterns first.
 		$patterns = array(
-			// Listicle templates.
-			'/^\d+\s+(amazing|incredible|mind[\s\-]melting|surprising|unique|unusual|weird|fun|cool|interesting|common)\s+facts?\s+about\s*/i',
-			'/^\d+\s+(unique\s+)?uses?\s+for\s*/i',
-			'/^\d+\s+things\s+\w+\s+know\s+about\s*/i',
+			// Listicle number prefixes.
 			'/^\d+\s+(most\s+common|ways\s+to|things\s+that|reasons?\s+why)\s*/i',
-			// Craving patterns.
-			'/^why am i craving\s*/i',
-			// Spiritual/meaning patterns.
-			'/^the spiritual meaning of\s*/i',
-			'/^spiritual meaning of\s*/i',
-			'/^the meaning of\s+.*\s+in\s+dreams?\s*/i',
-			'/^the meaning of\s*/i',
-			'/^meaning of\s*/i',
-			'/^the symbolism of\s*/i',
-			'/^symbolism of\s*/i',
-			// Question patterns.
+			'/^\d+\s+things\s+\w+\s+know\s+about\s*/i',
+			'/^\d+\s+\w+\s+facts?\s+about\s*/i',
+			'/^\d+\s+(unique\s+)?uses?\s+for\s*/i',
+			// Common question patterns.
 			'/^what does it mean (when|to|if)\s*/i',
 			'/^what (does|do|is|are|happens?\s+if|happens?\s+when)\s*/i',
 			'/^how (do|does|to|can|are)\s*/i',
@@ -1300,6 +1293,20 @@ class InternalLinkingAbilities {
 			'/\s*\([^)]*\)\s*/i', // Remove parenthetical text.
 			'/\?$/',               // Remove trailing question mark.
 		);
+
+		/**
+		 * Filter the regex patterns used to strip non-keyword prefixes
+		 * from post titles during keyword extraction.
+		 *
+		 * Add site-specific patterns here. Patterns are applied in order
+		 * against the lowercased title, so place longer/more specific
+		 * patterns before shorter/generic ones.
+		 *
+		 * @since 0.34.0
+		 *
+		 * @param array $patterns Array of regex pattern strings.
+		 */
+		$patterns = apply_filters( 'datamachine_title_strip_patterns', $patterns );
 
 		foreach ( $patterns as $pattern ) {
 			$title = preg_replace( $pattern, '', $title );
