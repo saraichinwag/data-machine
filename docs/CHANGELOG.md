@@ -2,6 +2,32 @@
 
 All notable changes to Data Machine will be documented in this file.
 
+## [0.35.0] - 2026-03-03
+
+### Added
+- pipeline batch fan-out — PipelineBatchScheduler (#504)
+- flow-scoped memory files with shared MemoryFilesReader (#500)
+- handler multi-return — all fetch handlers return multiple items (#507)
+- max_items setting for fetch handlers with cap at 100 (#510)
+- jobs cleanup CLI command and auto-expiry via Action Scheduler (#519)
+- queue validate CLI subcommand (#512)
+- inject-category deterministic internal link injection (#521)
+
+### Changed
+- unified DataPacket wrapping in FetchHandler.get_fetch_data() (#506)
+- consolidate dedup into FetchHandler base class (#516)
+- seed child job engine data from DataPacket metadata (#515)
+- extract site-specific title patterns into filterable hook in crosslinker
+- MetaDescriptionTask writes to post_excerpt instead of custom meta key (#522)
+- SKILL.md rewritten as discovery-first CLI guide (#494)
+
+### Fixed
+- PublishWordPressAbility bypasses WordPressSettingsResolver — posts get post_author 0 in headless contexts (#525, #527)
+- WordPressSettingsResolver hardcoded user ID 1 fallback — now looks up first administrator (#527)
+- rename PostTrackingTrait.php to match PostTracking class name (#518)
+- use valid JobStatus for batch cancellation (#517)
+- CLI --url flags renamed to avoid WP-CLI global parameter conflict (#493)
+
 ## [0.34.0] - 2026-03-02
 
 ### Added
