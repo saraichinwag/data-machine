@@ -152,7 +152,7 @@ class AnalyticsCommand extends BaseCommand {
 	 * ## OPTIONS
 	 *
 	 * <action>
-	 * : Action to perform: page_stats, traffic_sources, date_stats, realtime, top_events, user_demographics.
+	 * : Action to perform: page_stats, traffic_sources, date_stats, realtime, top_events, user_demographics, landing_pages, engagement, new_vs_returning.
 	 *
 	 * [--start-date=<date>]
 	 * : Start date in YYYY-MM-DD format (default: 28 days ago). Not used for realtime.
@@ -165,6 +165,18 @@ class AnalyticsCommand extends BaseCommand {
 	 *
 	 * [--page-filter=<string>]
 	 * : Filter results to pages with paths containing this string.
+	 *
+	 * [--hostname=<string>]
+	 * : Filter to pages on this hostname (for multisite GA4 properties).
+	 *
+	 * [--sort-by=<field>]
+	 * : Sort results by this metric or dimension field name.
+	 *
+	 * [--order=<direction>]
+	 * : Sort direction: asc or desc (default: desc).
+	 *
+	 * [--compare]
+	 * : Compare against the previous period of equal length. Adds delta columns.
 	 *
 	 * [--format=<format>]
 	 * : Output format.
@@ -193,6 +205,24 @@ class AnalyticsCommand extends BaseCommand {
 	 *     # Top events
 	 *     wp datamachine analytics ga top_events
 	 *
+	 *     # Landing pages with highest engagement
+	 *     wp datamachine analytics ga landing_pages --sort-by=engagementRate --order=desc
+	 *
+	 *     # Engagement metrics for specific section
+	 *     wp datamachine analytics ga engagement --page-filter=/blog/
+	 *
+	 *     # New vs returning users
+	 *     wp datamachine analytics ga new_vs_returning
+	 *
+	 *     # Filter by hostname for multisite
+	 *     wp datamachine analytics ga page_stats --hostname=events.extrachill.com
+	 *
+	 *     # Compare last 28 days vs previous 28 days
+	 *     wp datamachine analytics ga page_stats --compare
+	 *
+	 *     # Sort by bounce rate ascending (worst engagement)
+	 *     wp datamachine analytics ga page_stats --sort-by=bounceRate --order=asc --limit=10
+	 *
 	 * @subcommand ga
 	 */
 	public function ga( array $args, array $assoc_args ): void {
@@ -205,7 +235,15 @@ class AnalyticsCommand extends BaseCommand {
 			'end-date'    => 'end_date',
 			'limit'       => 'limit',
 			'page-filter' => 'page_filter',
+			'hostname'    => 'hostname',
+			'sort-by'     => 'sort_by',
+			'order'       => 'order',
 		) );
+
+		// --compare is a boolean flag (no value).
+		if ( isset( $assoc_args['compare'] ) ) {
+			$input['compare'] = true;
+		}
 
 		$this->execute_ability( 'datamachine/google-analytics', $input, $assoc_args );
 	}
