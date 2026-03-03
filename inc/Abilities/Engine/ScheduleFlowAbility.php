@@ -49,10 +49,10 @@ class ScheduleFlowAbility {
 								'type'        => 'integer',
 								'description' => __( 'Flow ID to schedule.', 'data-machine' ),
 							),
-							'interval_or_timestamp' => array(
-								'type'        => array( 'string', 'integer' ),
-								'description' => __( "Either 'manual', numeric timestamp, or interval key.", 'data-machine' ),
-							),
+						'interval_or_timestamp' => array(
+							'type'        => array( 'string', 'integer' ),
+							'description' => __( "Either 'manual', numeric timestamp, interval key, or cron expression.", 'data-machine' ),
+						),
 						),
 					),
 					'output_schema'       => array(
@@ -108,6 +108,13 @@ class ScheduleFlowAbility {
 
 		if ( is_numeric( $interval_or_timestamp ) ) {
 			return $this->scheduleOneTime( $flow_id, (int) $interval_or_timestamp );
+		}
+
+		// Detect cron expressions and route to cron scheduling.
+		if ( is_string( $interval_or_timestamp )
+			&& \DataMachine\Api\Flows\FlowScheduling::looks_like_cron_expression( $interval_or_timestamp )
+		) {
+			return $this->scheduleCron( $flow_id, $interval_or_timestamp );
 		}
 
 		return $this->scheduleRecurring( $flow_id, $interval_or_timestamp );
@@ -184,6 +191,48 @@ class ScheduleFlowAbility {
 			'schedule_type'  => 'one_time',
 			'action_id'      => $action_id,
 			'scheduled_time' => wp_date( 'c', $timestamp ),
+		);
+	}
+
+	/**
+	 * Schedule execution using a cron expression.
+	 *
+	 * Delegates to FlowScheduling::handle_scheduling_update() which uses
+	 * Action Scheduler's native as_schedule_cron_action().
+	 *
+	 * @param int    $flow_id         Flow ID.
+	 * @param string $cron_expression Cron expression string (e.g. "0 9 * * 1-5").
+	 * @return array Result.
+	 */
+	private function scheduleCron( int $flow_id, string $cron_expression ): array {
+		$result = \DataMachine\Api\Flows\FlowScheduling::handle_scheduling_update(
+			$flow_id,
+			array(
+				'interval'        => 'cron',
+				'cron_expression' => $cron_expression,
+			)
+		);
+
+		if ( is_wp_error( $result ) ) {
+			return array(
+				'success' => false,
+				'error'   => $result->get_error_message(),
+			);
+		}
+
+		// Read back the scheduling config to get the computed next run.
+		$flow              = $this->db_flows->get_flow( $flow_id );
+		$scheduling_config = array();
+		if ( $flow ) {
+			$scheduling_config = json_decode( $flow['scheduling_config'] ?? '{}', true );
+		}
+
+		return array(
+			'success'         => true,
+			'flow_id'         => $flow_id,
+			'schedule_type'   => 'cron',
+			'cron_expression' => $cron_expression,
+			'scheduled_time'  => $scheduling_config['first_run'] ?? null,
 		);
 	}
 
