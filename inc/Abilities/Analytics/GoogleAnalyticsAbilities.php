@@ -87,6 +87,18 @@ class GoogleAnalyticsAbilities {
 			'dimensions' => array( 'country', 'deviceCategory' ),
 			'metrics'    => array( 'sessions', 'activeUsers', 'screenPageViews' ),
 		),
+		'landing_pages'     => array(
+			'dimensions' => array( 'landingPage' ),
+			'metrics'    => array( 'sessions', 'activeUsers', 'bounceRate', 'averageSessionDuration', 'engagementRate' ),
+		),
+		'engagement'        => array(
+			'dimensions' => array( 'pagePath', 'pageTitle' ),
+			'metrics'    => array( 'engagementRate', 'averageSessionDuration', 'engagedSessions', 'sessionsPerUser', 'screenPageViewsPerSession', 'userEngagementDuration' ),
+		),
+		'new_vs_returning'  => array(
+			'dimensions' => array( 'newVsReturning' ),
+			'metrics'    => array( 'sessions', 'activeUsers', 'engagementRate', 'screenPageViewsPerSession', 'averageSessionDuration' ),
+		),
 	);
 
 	private static bool $registered = false;
@@ -118,7 +130,7 @@ class GoogleAnalyticsAbilities {
 						'properties' => array(
 							'action'      => array(
 								'type'        => 'string',
-								'description' => 'Action to perform: page_stats, traffic_sources, date_stats, realtime, top_events, user_demographics.',
+								'description' => 'Action to perform: page_stats, traffic_sources, date_stats, realtime, top_events, user_demographics, landing_pages, engagement, new_vs_returning.',
 							),
 							'property_id' => array(
 								'type'        => 'string',
@@ -139,6 +151,22 @@ class GoogleAnalyticsAbilities {
 							'page_filter' => array(
 								'type'        => 'string',
 								'description' => 'Filter results to pages with paths containing this string.',
+							),
+							'hostname'    => array(
+								'type'        => 'string',
+								'description' => 'Filter to pages on this hostname (for multisite GA4 properties).',
+							),
+							'sort_by'     => array(
+								'type'        => 'string',
+								'description' => 'Sort results by this metric or dimension field name.',
+							),
+							'order'       => array(
+								'type'        => 'string',
+								'description' => 'Sort direction: asc or desc (default: desc).',
+							),
+							'compare'     => array(
+								'type'        => 'boolean',
+								'description' => 'Compare against the previous period of equal length. Adds delta columns.',
 							),
 						),
 					),
@@ -242,6 +270,7 @@ class GoogleAnalyticsAbilities {
 		$start_date = ! empty( $input['start_date'] ) ? sanitize_text_field( $input['start_date'] ) : gmdate( 'Y-m-d', strtotime( '-28 days' ) );
 		$end_date   = ! empty( $input['end_date'] ) ? sanitize_text_field( $input['end_date'] ) : gmdate( 'Y-m-d', strtotime( '-1 day' ) );
 		$limit      = ! empty( $input['limit'] ) ? min( (int) $input['limit'], self::MAX_LIMIT ) : self::DEFAULT_LIMIT;
+		$compare    = ! empty( $input['compare'] );
 
 		$dimensions = array_map(
 			function ( $dim ) {
@@ -257,29 +286,104 @@ class GoogleAnalyticsAbilities {
 			$report_config['metrics']
 		);
 
-		$request_body = array(
-			'dateRanges' => array(
-				array(
-					'startDate' => $start_date,
-					'endDate'   => $end_date,
-				),
+		// Build date ranges — add comparison period if requested.
+		$date_ranges = array(
+			array(
+				'startDate' => $start_date,
+				'endDate'   => $end_date,
 			),
+		);
+
+		if ( $compare ) {
+			$period_length    = (int) ( ( strtotime( $end_date ) - strtotime( $start_date ) ) / 86400 );
+			$compare_end_ts   = strtotime( $start_date ) - 86400;
+			$compare_start_ts = $compare_end_ts - ( $period_length * 86400 );
+			$date_ranges[]    = array(
+				'startDate' => gmdate( 'Y-m-d', $compare_start_ts ),
+				'endDate'   => gmdate( 'Y-m-d', $compare_end_ts ),
+			);
+		}
+
+		$request_body = array(
+			'dateRanges' => $date_ranges,
 			'dimensions' => $dimensions,
 			'metrics'    => $metrics,
 			'limit'      => $limit,
 		);
 
-		// Build dimension filter if page_filter provided and action includes pagePath.
-		if ( ! empty( $input['page_filter'] ) && in_array( 'pagePath', $report_config['dimensions'], true ) ) {
-			$request_body['dimensionFilter'] = array(
+		// Build dimension filters.
+		$filters = array();
+
+		// Page path filter (for actions with pagePath or landingPage dimension).
+		if ( ! empty( $input['page_filter'] ) ) {
+			$path_dim = null;
+			if ( in_array( 'pagePath', $report_config['dimensions'], true ) ) {
+				$path_dim = 'pagePath';
+			} elseif ( in_array( 'landingPage', $report_config['dimensions'], true ) ) {
+				$path_dim = 'landingPage';
+			}
+
+			if ( $path_dim ) {
+				$filters[] = array(
+					'filter' => array(
+						'fieldName'    => $path_dim,
+						'stringFilter' => array(
+							'matchType' => 'CONTAINS',
+							'value'     => sanitize_text_field( $input['page_filter'] ),
+						),
+					),
+				);
+			}
+		}
+
+		// Hostname filter for multisite properties.
+		if ( ! empty( $input['hostname'] ) ) {
+			$filters[] = array(
 				'filter' => array(
-					'fieldName'    => 'pagePath',
+					'fieldName'    => 'hostName',
 					'stringFilter' => array(
-						'matchType' => 'CONTAINS',
-						'value'     => sanitize_text_field( $input['page_filter'] ),
+						'matchType' => 'EXACT',
+						'value'     => sanitize_text_field( $input['hostname'] ),
 					),
 				),
 			);
+		}
+
+		if ( count( $filters ) === 1 ) {
+			$request_body['dimensionFilter'] = $filters[0];
+		} elseif ( count( $filters ) > 1 ) {
+			$request_body['dimensionFilter'] = array(
+				'andGroup' => array(
+					'expressions' => $filters,
+				),
+			);
+		}
+
+		// Sort order.
+		if ( ! empty( $input['sort_by'] ) ) {
+			$sort_field  = sanitize_text_field( $input['sort_by'] );
+			$sort_order  = 'asc' === strtolower( $input['order'] ?? 'desc' ) ? 'ASCENDING' : 'DESCENDING';
+			$all_metrics = $report_config['metrics'];
+			$all_dims    = $report_config['dimensions'];
+
+			if ( in_array( $sort_field, $all_metrics, true ) ) {
+				$request_body['orderBys'] = array(
+					array(
+						'metric' => array( 'metricName' => $sort_field ),
+						'desc'   => 'DESCENDING' === $sort_order,
+					),
+				);
+			} elseif ( in_array( $sort_field, $all_dims, true ) ) {
+				$request_body['orderBys'] = array(
+					array(
+						'dimension' => array(
+							'dimensionName' => $sort_field,
+							'orderType'     => 'ALPHANUMERIC',
+						),
+						'desc'      => 'DESCENDING' === $sort_order,
+					),
+				);
+			}
 		}
 
 		$api_url = self::API_BASE . $property_id . ':runReport';
@@ -321,9 +425,11 @@ class GoogleAnalyticsAbilities {
 			);
 		}
 
-		$rows = self::formatReportRows( $data, $report_config );
+		$rows = $compare
+			? self::formatComparisonRows( $data, $report_config )
+			: self::formatReportRows( $data, $report_config );
 
-		return array(
+		$response = array(
 			'success'       => true,
 			'action'        => $action,
 			'date_range'    => array(
@@ -333,6 +439,15 @@ class GoogleAnalyticsAbilities {
 			'results_count' => count( $rows ),
 			'results'       => $rows,
 		);
+
+		if ( $compare ) {
+			$response['compare_date_range'] = array(
+				'start_date' => $date_ranges[1]['startDate'],
+				'end_date'   => $date_ranges[1]['endDate'],
+			);
+		}
+
+		return $response;
 	}
 
 	/**
@@ -455,6 +570,69 @@ class GoogleAnalyticsAbilities {
 					$formatted[ $name ] = strpos( $value, '.' ) !== false ? (float) $value : (int) $value;
 				} else {
 					$formatted[ $name ] = $value;
+				}
+			}
+
+			$rows[] = $formatted;
+		}
+
+		return $rows;
+	}
+
+	/**
+	 * Format GA4 comparison rows with delta columns.
+	 *
+	 * When two date ranges are used, the API returns rows with metricValues
+	 * containing values for each date range. This interleaves current and
+	 * previous values, then computes percentage deltas.
+	 *
+	 * @param array $data          Raw GA4 API response.
+	 * @param array $report_config Report configuration.
+	 * @return array Formatted rows with delta columns.
+	 */
+	private static function formatComparisonRows( array $data, array $report_config ): array {
+		$dimension_headers = wp_list_pluck( $data['dimensionHeaders'] ?? array(), 'name' );
+		$metric_headers    = wp_list_pluck( $data['metricHeaders'] ?? array(), 'name' );
+		$metric_count      = count( $metric_headers );
+
+		$rows = array();
+
+		foreach ( ( $data['rows'] ?? array() ) as $row ) {
+			$dim_values    = wp_list_pluck( $row['dimensionValues'] ?? array(), 'value' );
+			$metric_values = wp_list_pluck( $row['metricValues'] ?? array(), 'value' );
+
+			$formatted = array();
+			foreach ( $dimension_headers as $i => $name ) {
+				// Skip the dateRange dimension GA4 adds for multi-range requests.
+				if ( 'dateRange' === $name ) {
+					continue;
+				}
+				$formatted[ $name ] = $dim_values[ $i ] ?? '';
+			}
+
+			// GA4 returns metric values as [current_m1, current_m2, ..., previous_m1, previous_m2, ...].
+			for ( $i = 0; $i < $metric_count; $i++ ) {
+				$name     = $metric_headers[ $i ];
+				$current  = $metric_values[ $i ] ?? '0';
+				$previous = $metric_values[ $i + $metric_count ] ?? '0';
+
+				$current_num  = is_numeric( $current ) ? (float) $current : 0;
+				$previous_num = is_numeric( $previous ) ? (float) $previous : 0;
+
+				// Format current value.
+				if ( is_numeric( $current ) ) {
+					$formatted[ $name ] = strpos( $current, '.' ) !== false ? (float) $current : (int) $current;
+				} else {
+					$formatted[ $name ] = $current;
+				}
+
+				// Compute delta percentage.
+				if ( 0.0 !== $previous_num ) {
+					$delta = ( ( $current_num - $previous_num ) / $previous_num ) * 100;
+					$sign  = $delta >= 0 ? '+' : '';
+					$formatted[ "\xCE\x94 " . $name ] = $sign . round( $delta, 1 ) . '%';
+				} else {
+					$formatted[ "\xCE\x94 " . $name ] = $current_num > 0 ? 'new' : '-';
 				}
 			}
 

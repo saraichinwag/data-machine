@@ -69,13 +69,13 @@ class GoogleAnalytics extends BaseTool {
 		return array(
 			'class'           => __CLASS__,
 			'method'          => 'handle_tool_call',
-			'description'     => 'Fetch visitor analytics from Google Analytics (GA4). Get page performance metrics, traffic sources, daily trends, real-time active users, top events, and user demographics. Use to analyze site traffic, identify popular content, understand visitor behavior, and spot trends.',
+			'description'     => 'Fetch visitor analytics from Google Analytics (GA4). Get page performance metrics, traffic sources, daily trends, real-time active users, top events, user demographics, landing pages, engagement metrics, and new-vs-returning user breakdown. Supports sorting, hostname filtering for multisite, and period-over-period comparison.',
 			'requires_config' => true,
 			'parameters'      => array(
 				'action'      => array(
 					'type'        => 'string',
 					'required'    => true,
-					'description' => 'Action to perform: page_stats (per-page views, sessions, bounce rate), traffic_sources (where visitors come from), date_stats (daily trends over time), realtime (active users right now), top_events (most triggered events), user_demographics (visitor country and device breakdown).',
+					'description' => 'Action to perform: page_stats (per-page views, sessions, bounce rate), traffic_sources (where visitors come from), date_stats (daily trends over time), realtime (active users right now), top_events (most triggered events), user_demographics (visitor country and device breakdown), landing_pages (entry pages with session metrics), engagement (engagement rate, session quality, pages/session), new_vs_returning (new vs returning user comparison).',
 				),
 				'property_id' => array(
 					'type'        => 'string',
@@ -101,6 +101,26 @@ class GoogleAnalytics extends BaseTool {
 					'type'        => 'string',
 					'required'    => false,
 					'description' => 'Filter results to pages with paths containing this string.',
+				),
+				'hostname'    => array(
+					'type'        => 'string',
+					'required'    => false,
+					'description' => 'Filter to pages on this hostname (for multisite GA4 properties).',
+				),
+				'sort_by'     => array(
+					'type'        => 'string',
+					'required'    => false,
+					'description' => 'Sort results by this metric or dimension field name (e.g. bounceRate, sessions, engagementRate).',
+				),
+				'order'       => array(
+					'type'        => 'string',
+					'required'    => false,
+					'description' => 'Sort direction: asc or desc (default: desc).',
+				),
+				'compare'     => array(
+					'type'        => 'boolean',
+					'required'    => false,
+					'description' => 'Compare against the previous period of equal length. Adds delta percentage columns.',
 				),
 			),
 		);
