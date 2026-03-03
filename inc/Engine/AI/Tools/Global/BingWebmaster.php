@@ -144,34 +144,24 @@ class BingWebmaster extends BaseTool {
 	 * @param string $tool_id     Tool identifier.
 	 * @param array  $config_data Configuration data.
 	 */
-	public function save_configuration( $tool_id, $config_data ) {
-		if ( 'bing_webmaster' !== $tool_id ) {
-			return;
-		}
+	protected function get_config_option_name(): string {
+		return BingWebmasterAbilities::CONFIG_OPTION;
+	}
 
-		$api_key  = sanitize_text_field( $config_data['api_key'] ?? '' );
-		$site_url = esc_url_raw( $config_data['site_url'] ?? '' );
+	protected function validate_and_build_config( array $config_data ): array {
+		$api_key = sanitize_text_field( $config_data['api_key'] ?? '' );
 
 		if ( empty( $api_key ) ) {
-			wp_send_json_error( array( 'message' => __( 'Bing Webmaster API key is required', 'data-machine' ) ) );
-			return;
+			return array( 'error' => __( 'Bing Webmaster API key is required', 'data-machine' ) );
 		}
 
-		$config = array(
-			'api_key'  => $api_key,
-			'site_url' => $site_url,
+		return array(
+			'config'  => array(
+				'api_key'  => $api_key,
+				'site_url' => esc_url_raw( $config_data['site_url'] ?? '' ),
+			),
+			'message' => __( 'Bing Webmaster Tools configuration saved successfully', 'data-machine' ),
 		);
-
-		if ( update_site_option( BingWebmasterAbilities::CONFIG_OPTION, $config ) ) {
-			wp_send_json_success(
-				array(
-					'message'    => __( 'Bing Webmaster Tools configuration saved successfully', 'data-machine' ),
-					'configured' => true,
-				)
-			);
-		} else {
-			wp_send_json_error( array( 'message' => __( 'Failed to save configuration', 'data-machine' ) ) );
-		}
 	}
 
 	/**

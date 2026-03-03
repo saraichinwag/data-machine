@@ -145,27 +145,17 @@ class PageSpeed extends BaseTool {
 	 * @param string $tool_id     Tool identifier.
 	 * @param array  $config_data Configuration data.
 	 */
-	public function save_configuration( $tool_id, $config_data ) {
-		if ( 'pagespeed' !== $tool_id ) {
-			return;
-		}
+	protected function get_config_option_name(): string {
+		return PageSpeedAbilities::CONFIG_OPTION;
+	}
 
-		$api_key = sanitize_text_field( $config_data['api_key'] ?? '' );
-
-		$config = array(
-			'api_key' => $api_key,
+	protected function validate_and_build_config( array $config_data ): array {
+		return array(
+			'config'  => array(
+				'api_key' => sanitize_text_field( $config_data['api_key'] ?? '' ),
+			),
+			'message' => __( 'PageSpeed Insights configuration saved successfully', 'data-machine' ),
 		);
-
-		if ( update_site_option( PageSpeedAbilities::CONFIG_OPTION, $config ) ) {
-			wp_send_json_success(
-				array(
-					'message'    => __( 'PageSpeed Insights configuration saved successfully', 'data-machine' ),
-					'configured' => true,
-				)
-			);
-		} else {
-			wp_send_json_error( array( 'message' => __( 'Failed to save configuration', 'data-machine' ) ) );
-		}
 	}
 
 	/**

@@ -192,17 +192,28 @@ class GoogleSearch extends BaseTool {
 		return self::get_config();
 	}
 
-	public function save_configuration( $tool_id, $config_data ) {
+	/**
+	 * GoogleSearch uses a nested key inside a shared option, so it overrides
+	 * save_configuration() directly instead of using the base flow.
+	 *
+	 * @param array|null $result      Previous handler result.
+	 * @param string     $tool_id     Tool identifier.
+	 * @param array      $config_data Sanitized configuration data.
+	 * @return array|null
+	 */
+	public function save_configuration( $result, $tool_id, $config_data ) {
 		if ( 'google_search' !== $tool_id ) {
-			return;
+			return $result;
 		}
 
 		$api_key          = sanitize_text_field( $config_data['api_key'] ?? '' );
 		$search_engine_id = sanitize_text_field( $config_data['search_engine_id'] ?? '' );
 
 		if ( empty( $api_key ) || empty( $search_engine_id ) ) {
-			wp_send_json_error( array( 'message' => __( 'API Key and Search Engine ID are required', 'data-machine' ) ) );
-			return;
+			return array(
+				'success' => false,
+				'error'   => __( 'API Key and Search Engine ID are required', 'data-machine' ),
+			);
 		}
 
 		$stored_config                  = get_site_option( 'datamachine_search_config', array() );
@@ -212,15 +223,16 @@ class GoogleSearch extends BaseTool {
 		);
 
 		if ( update_site_option( 'datamachine_search_config', $stored_config ) ) {
-			wp_send_json_success(
-				array(
-					'message'    => __( 'Google Search configuration saved successfully', 'data-machine' ),
-					'configured' => true,
-				)
+			return array(
+				'success' => true,
+				'message' => __( 'Google Search configuration saved successfully', 'data-machine' ),
 			);
-		} else {
-			wp_send_json_error( array( 'message' => __( 'Failed to save configuration', 'data-machine' ) ) );
 		}
+
+		return array(
+			'success' => false,
+			'error'   => __( 'Failed to save configuration', 'data-machine' ),
+		);
 	}
 
 	public function get_config_fields( $fields = array(), $tool_id = '' ) {

@@ -677,7 +677,30 @@ class SettingsAbilities {
 				: sanitize_text_field( $value );
 		}
 
-		$result = array(
+		/**
+		 * Save tool configuration via registered handlers.
+		 *
+		 * Tools hook into this filter via BaseTool::registerConfigurationHandlers().
+		 * Each handler checks if it owns the tool_id and returns a result array
+		 * with 'success' and 'message' or 'error' keys. Handlers that don't own
+		 * the tool_id pass through the $result unchanged.
+		 *
+		 * @since 0.36.0
+		 *
+		 * @param array|null $result         Result from a previous handler, or null if none handled it yet.
+		 * @param string     $tool_id        Tool identifier.
+		 * @param array      $sanitized_config Sanitized configuration data.
+		 */
+		$result = apply_filters( 'datamachine_save_tool_config', null, $tool_id, $sanitized_config );
+
+		if ( is_array( $result ) && isset( $result['success'] ) ) {
+			if ( $result['success'] ) {
+				$result['tool_id'] = $tool_id;
+			}
+			return $result;
+		}
+
+		return array(
 			'success' => false,
 			'error'   => sprintf(
 				/* translators: %s: tool ID */
@@ -685,24 +708,6 @@ class SettingsAbilities {
 				$tool_id
 			),
 		);
-
-		$handler_fired = apply_filters( 'datamachine_save_tool_config_ability', false, $tool_id, $sanitized_config );
-
-		if ( $handler_fired ) {
-			return array(
-				'success' => true,
-				'tool_id' => $tool_id,
-				'message' => sprintf(
-					/* translators: %s: tool ID */
-					__( 'Configuration saved for tool: %s', 'data-machine' ),
-					$tool_id
-				),
-			);
-		}
-
-		do_action( 'datamachine_save_tool_config', $tool_id, $sanitized_config );
-
-		return $result;
 	}
 
 	public function executeGetHandlerDefaults( array $input ): array {
