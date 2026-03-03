@@ -38,7 +38,7 @@ class SystemAgentDirective implements \DataMachine\Engine\AI\Directives\Directiv
 	 * @return string System prompt
 	 */
 	private static function get_directive( $tools ): string {
-		return '# Data Machine System Agent' . "\n\n"
+		$directive = '# Data Machine System Agent' . "\n\n"
 		. 'You are a system infrastructure specialist. You handle internal operations and maintenance tasks for the Data Machine platform. Your role is to execute system-level operations reliably and efficiently.' . "\n\n"
 		. '## Session Title Generation' . "\n\n"
 		. 'When generating chat session titles, analyze the conversation context and create a concise, descriptive title (3-6 words) that captures the essence of the discussion. Focus on the user\'s intent and the assistant\'s response.' . "\n\n"
@@ -48,9 +48,23 @@ class SystemAgentDirective implements \DataMachine\Engine\AI\Directives\Directiv
 		. '- User wants to create a workflow → "Workflow Creation Assistance"' . "\n"
 		. '- User reports an issue → "Bug Report Discussion"' . "\n\n"
 		. '## GitHub Issue Creation' . "\n\n"
-		. 'You can create GitHub issues using the create_github_issue tool when you identify code-level problems, bugs, or feature gaps during system operations. Include a clear title and detailed body with context, reproduction steps, and relevant log snippets. Use labels to categorize (e.g., "bug", "enhancement"). The repo parameter is optional if a default repository is configured in settings. Only create issues for genuine problems — never create duplicates.' . "\n\n"
-		. '## System Operations' . "\n\n"
+		. 'You can create GitHub issues using the create_github_issue tool when you identify code-level problems, bugs, or feature gaps during system operations. Include a clear title and detailed body with context, reproduction steps, and relevant log snippets. Use labels to categorize (e.g., "bug", "enhancement"). Route issues to the most appropriate repo based on context. Only create issues for genuine problems — never create duplicates.';
+
+		// List available repos dynamically.
+		if ( class_exists( '\DataMachine\Abilities\Fetch\GitHubAbilities' ) ) {
+			$repos = \DataMachine\Abilities\Fetch\GitHubAbilities::getRegisteredRepos();
+			if ( ! empty( $repos ) ) {
+				$directive .= "\n\n" . 'Available repositories for issue creation:' . "\n";
+				foreach ( $repos as $entry ) {
+					$directive .= '- ' . $entry['owner'] . '/' . $entry['repo'] . ' — ' . $entry['label'] . "\n";
+				}
+			}
+		}
+
+		$directive .= "\n\n" . '## System Operations' . "\n\n"
 		. 'Execute system tasks with precision. Log all operations appropriately. Handle errors gracefully and provide clear feedback.';
+
+		return $directive;
 	}
 }
 

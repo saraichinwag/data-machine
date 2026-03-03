@@ -12,12 +12,15 @@ namespace DataMachine\Engine\AI\System\Tasks;
 
 defined( 'ABSPATH' ) || exit;
 
+use DataMachine\Abilities\Fetch\GitHubAbilities;
 use DataMachine\Core\PluginSettings;
 
 class GitHubIssueTask extends SystemTask {
 
 	/**
 	 * Execute GitHub issue creation.
+	 *
+	 * Repo resolution: explicit param → default setting → first registered repo.
 	 *
 	 * @since 0.24.0
 	 *
@@ -28,11 +31,7 @@ class GitHubIssueTask extends SystemTask {
 		$title  = trim( $params['title'] ?? '' );
 		$body   = $params['body'] ?? '';
 		$labels = $params['labels'] ?? array();
-		$repo   = trim( $params['repo'] ?? '' );
-
-		if ( empty( $repo ) ) {
-			$repo = trim( PluginSettings::get( 'github_default_repo', '' ) );
-		}
+		$repo   = GitHubAbilities::resolveRepo( trim( $params['repo'] ?? '' ) );
 
 		if ( empty( $title ) ) {
 			$this->failJob( $jobId, 'Missing required parameter: title' );
@@ -40,7 +39,7 @@ class GitHubIssueTask extends SystemTask {
 		}
 
 		if ( empty( $repo ) ) {
-			$this->failJob( $jobId, 'Missing required parameter: repo (and no default configured)' );
+			$this->failJob( $jobId, 'Missing required parameter: repo (no default configured and no repos registered via datamachine_github_issue_repos filter)' );
 			return;
 		}
 

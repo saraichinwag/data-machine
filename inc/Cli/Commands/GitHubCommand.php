@@ -482,6 +482,23 @@ class GitHubCommand extends BaseCommand {
 		);
 
 		$this->format_items( $items, array( 'setting', 'value' ), $assoc_args );
+
+		// Show registered repos from the filter.
+		$repos = GitHubAbilities::getRegisteredRepos();
+		if ( ! empty( $repos ) ) {
+			WP_CLI::log( '' );
+			WP_CLI::log( 'Registered repos for issue creation:' );
+
+			$repo_items = array();
+			foreach ( $repos as $entry ) {
+				$repo_items[] = array(
+					'repo'  => ( $entry['owner'] ?? '' ) . '/' . ( $entry['repo'] ?? '' ),
+					'label' => $entry['label'] ?? '',
+				);
+			}
+
+			$this->format_items( $repo_items, array( 'repo', 'label' ), $assoc_args );
+		}
 	}
 
 	// -------------------------------------------------------------------------
@@ -504,11 +521,9 @@ class GitHubCommand extends BaseCommand {
 	 * @return array Input with resolved repo.
 	 */
 	private function resolveRepo( array $input ): array {
+		$input['repo'] = GitHubAbilities::resolveRepo( $input['repo'] ?? '' );
 		if ( empty( $input['repo'] ) ) {
-			$input['repo'] = GitHubAbilities::getDefaultRepo();
-		}
-		if ( empty( $input['repo'] ) ) {
-			WP_CLI::error( 'Required: --repo=<owner/repo> (or set a default repo in settings).' );
+			WP_CLI::error( 'Required: --repo=<owner/repo> (or set a default repo in settings, or register repos via datamachine_github_issue_repos filter).' );
 		}
 		return $input;
 	}

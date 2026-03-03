@@ -897,6 +897,104 @@ class GitHubAbilities {
 	}
 
 	/**
+	 * Get all registered GitHub repos for issue creation.
+	 *
+	 * Extension plugins register their repos via the datamachine_github_issue_repos
+	 * filter. The default repo from settings is always included if set.
+	 *
+	 * Each entry has: owner, repo, label (human-readable name).
+	 *
+	 * Usage in extension plugins:
+	 *
+	 *     add_filter( 'datamachine_github_issue_repos', function ( $repos ) {
+	 *         $repos[] = array(
+	 *             'owner' => 'Extra-Chill',
+	 *             'repo'  => 'data-machine-socials',
+	 *             'label' => 'Social Media Extension',
+	 *         );
+	 *         return $repos;
+	 *     } );
+	 *
+	 * @since 0.36.0
+	 *
+	 * @return array Array of repo definitions with owner, repo, label keys.
+	 */
+	public static function getRegisteredRepos(): array {
+		$repos = array();
+
+		// Always include the default repo from settings if configured.
+		$default_repo = self::getDefaultRepo();
+		if ( ! empty( $default_repo ) && str_contains( $default_repo, '/' ) ) {
+			$parts  = explode( '/', $default_repo, 2 );
+			$repos[] = array(
+				'owner' => $parts[0],
+				'repo'  => $parts[1],
+				'label' => 'Default (from settings)',
+			);
+		}
+
+		/**
+		 * Filter the list of GitHub repos available for issue creation.
+		 *
+		 * Extension plugins should append their repo to this array so the
+		 * AI agent and CLI can target the correct repo for bugs/features.
+		 *
+		 * @since 0.36.0
+		 *
+		 * @param array $repos Array of repo definitions. Each entry:
+		 *     - owner (string) GitHub org or username.
+		 *     - repo  (string) Repository name.
+		 *     - label (string) Human-readable label for display.
+		 */
+		$repos = apply_filters( 'datamachine_github_issue_repos', $repos );
+
+		// Deduplicate by owner/repo.
+		$seen   = array();
+		$unique = array();
+		foreach ( $repos as $entry ) {
+			$key = strtolower( ( $entry['owner'] ?? '' ) . '/' . ( $entry['repo'] ?? '' ) );
+			if ( isset( $seen[ $key ] ) ) {
+				continue;
+			}
+			$seen[ $key ] = true;
+			$unique[]     = $entry;
+		}
+
+		return $unique;
+	}
+
+	/**
+	 * Resolve the best repo for issue creation.
+	 *
+	 * Resolution order:
+	 * 1. Explicit repo from input (if provided)
+	 * 2. Default repo from settings
+	 * 3. First registered repo from the filter
+	 *
+	 * @since 0.36.0
+	 *
+	 * @param string $repo Explicit repo in owner/repo format, or empty.
+	 * @return string Resolved repo in owner/repo format, or empty if none available.
+	 */
+	public static function resolveRepo( string $repo = '' ): string {
+		if ( ! empty( $repo ) ) {
+			return $repo;
+		}
+
+		$default = self::getDefaultRepo();
+		if ( ! empty( $default ) ) {
+			return $default;
+		}
+
+		$registered = self::getRegisteredRepos();
+		if ( ! empty( $registered ) ) {
+			return $registered[0]['owner'] . '/' . $registered[0]['repo'];
+		}
+
+		return '';
+	}
+
+	/**
 	 * Return standard PAT-not-configured error.
 	 *
 	 * @return array
