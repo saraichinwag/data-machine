@@ -91,7 +91,7 @@ class FlowsCommand extends BaseCommand {
 	 * : JSON object with step configurations keyed by step_type (create subcommand).
 	 *
 	 * [--scheduling=<interval>]
-	 * : Scheduling interval (manual, hourly, daily, etc.).
+	 * : Scheduling interval (manual, hourly, daily, etc.) or cron expression (e.g. "0 9 * * 1-5").
 	 *
 	 * [--set-prompt=<text>]
 	 * : Update the prompt for a handler step (requires handler step to exist).
@@ -370,7 +370,12 @@ class FlowsCommand extends BaseCommand {
 		WP_CLI::log( sprintf( 'Flow ID:      %d', $flow['flow_id'] ) );
 		WP_CLI::log( sprintf( 'Name:         %s', $flow['flow_name'] ) );
 		WP_CLI::log( sprintf( 'Pipeline ID:  %s', $flow['pipeline_id'] ?? 'N/A' ) );
-		WP_CLI::log( sprintf( 'Scheduling:   %s', $interval ) );
+		if ( 'cron' === $interval && ! empty( $scheduling['cron_expression'] ) ) {
+			$cron_desc = \DataMachine\Api\Flows\FlowScheduling::describe_cron_expression( $scheduling['cron_expression'] );
+			WP_CLI::log( sprintf( 'Scheduling:   cron (%s) — %s', $scheduling['cron_expression'], $cron_desc ) );
+		} else {
+			WP_CLI::log( sprintf( 'Scheduling:   %s', $interval ) );
+		}
 		WP_CLI::log( sprintf( 'Last run:     %s', $flow['last_run_display'] ?? 'Never' ) );
 		WP_CLI::log( sprintf( 'Next run:     %s', $flow['next_run_display'] ?? 'Not scheduled' ) );
 		WP_CLI::log( sprintf( 'Running:      %s', ( $flow['is_running'] ?? false ) ? 'Yes' : 'No' ) );
@@ -516,10 +521,12 @@ class FlowsCommand extends BaseCommand {
 			$step_configs = $decoded ?? array();
 		}
 
+		$scheduling_config = self::build_scheduling_config( $scheduling );
+
 		$input = array(
 			'pipeline_id'       => $pipeline_id,
 			'flow_name'         => $flow_name,
-			'scheduling_config' => array( 'interval' => $scheduling ),
+			'scheduling_config' => $scheduling_config,
 			'step_configs'      => $step_configs,
 		);
 
@@ -529,7 +536,7 @@ class FlowsCommand extends BaseCommand {
 				array(
 					'pipeline_id'       => $pipeline_id,
 					'flow_name'         => $flow_name,
-					'scheduling_config' => array( 'interval' => $scheduling ),
+					'scheduling_config' => $scheduling_config,
 					'step_configs'      => $step_configs,
 				),
 			);
@@ -707,7 +714,7 @@ class FlowsCommand extends BaseCommand {
 		}
 
 		if ( null !== $scheduling ) {
-			$input['scheduling_config'] = array( 'interval' => $scheduling );
+			$input['scheduling_config'] = self::build_scheduling_config( $scheduling );
 		}
 
 		if ( null !== $name || null !== $scheduling ) {
@@ -722,8 +729,11 @@ class FlowsCommand extends BaseCommand {
 			WP_CLI::success( sprintf( 'Flow %d updated.', $flow_id ) );
 			WP_CLI::log( sprintf( 'Name: %s', $result['flow_name'] ?? '' ) );
 
-			if ( isset( $result['flow_data']['scheduling_config']['interval'] ) ) {
-				WP_CLI::log( sprintf( 'Scheduling: %s', $result['flow_data']['scheduling_config']['interval'] ) );
+			$sched = $result['flow_data']['scheduling_config'] ?? array();
+			if ( 'cron' === ( $sched['interval'] ?? '' ) && ! empty( $sched['cron_expression'] ) ) {
+				WP_CLI::log( sprintf( 'Scheduling: cron (%s)', $sched['cron_expression'] ) );
+			} elseif ( isset( $sched['interval'] ) ) {
+				WP_CLI::log( sprintf( 'Scheduling: %s', $sched['interval'] ) );
 			}
 		}
 
@@ -1155,5 +1165,26 @@ class FlowsCommand extends BaseCommand {
 		);
 
 		\WP_CLI\Utils\format_items( $format, $items, array( 'filename' ) );
+	}
+
+	/**
+	 * Build a scheduling_config array from a CLI --scheduling value.
+	 *
+	 * Detects cron expressions and routes them correctly:
+	 * - Cron expression (e.g. "0 * /3 * * *") → interval=cron + cron_expression
+	 * - Interval key (e.g. "daily") → interval=<key>
+	 *
+	 * @param string $scheduling Value from --scheduling CLI flag.
+	 * @return array Scheduling config array.
+	 */
+	private static function build_scheduling_config( string $scheduling ): array {
+		if ( \DataMachine\Api\Flows\FlowScheduling::looks_like_cron_expression( $scheduling ) ) {
+			return array(
+				'interval'        => 'cron',
+				'cron_expression' => $scheduling,
+			);
+		}
+
+		return array( 'interval' => $scheduling );
 	}
 }

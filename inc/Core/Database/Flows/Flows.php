@@ -591,12 +591,24 @@ class Flows extends BaseRepository {
 		}
 
 		if ( null === $last_run_at ) {
-			return true; // Never run before
+			return true; // Never run before.
 		}
 
 		$last_run_timestamp = ( new \DateTime( $last_run_at, new \DateTimeZone( 'UTC' ) ) )->getTimestamp();
 		$current_timestamp  = ( new \DateTime( $current_time, new \DateTimeZone( 'UTC' ) ) )->getTimestamp();
 		$interval           = $scheduling_config['interval'];
+
+		// Cron expression scheduling: check if the next run after last_run is in the past.
+		if ( 'cron' === $interval && ! empty( $scheduling_config['cron_expression'] ) && class_exists( 'CronExpression' ) ) {
+			try {
+				$cron     = \CronExpression::factory( $scheduling_config['cron_expression'] );
+				$last_run = new \DateTime( $last_run_at, new \DateTimeZone( 'UTC' ) );
+				$next_run = $cron->getNextRunDate( $last_run );
+				return $current_timestamp >= $next_run->getTimestamp();
+			} catch ( \Exception $e ) {
+				return false;
+			}
+		}
 
 		$intervals     = apply_filters( 'datamachine_scheduler_intervals', array() );
 		$interval_data = $intervals[ $interval ] ?? null;
