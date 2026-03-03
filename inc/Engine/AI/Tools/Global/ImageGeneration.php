@@ -164,36 +164,27 @@ class ImageGeneration extends BaseTool {
 	 * @param string $tool_id     Tool identifier.
 	 * @param array  $config_data Configuration data.
 	 */
-	public function save_configuration( $tool_id, $config_data ) {
-		if ( 'image_generation' !== $tool_id ) {
-			return;
-		}
+	protected function get_config_option_name(): string {
+		return ImageGenerationAbilities::CONFIG_OPTION;
+	}
 
+	protected function validate_and_build_config( array $config_data ): array {
 		$api_key = sanitize_text_field( $config_data['api_key'] ?? '' );
 
 		if ( empty( $api_key ) ) {
-			wp_send_json_error( array( 'message' => __( 'Replicate API key is required', 'data-machine' ) ) );
-			return;
+			return array( 'error' => __( 'Replicate API key is required', 'data-machine' ) );
 		}
 
-		$config = array(
-			'api_key'                   => $api_key,
-			'default_model'             => sanitize_text_field( $config_data['default_model'] ?? ImageGenerationAbilities::DEFAULT_MODEL ),
-			'default_aspect_ratio'      => sanitize_text_field( $config_data['default_aspect_ratio'] ?? ImageGenerationAbilities::DEFAULT_ASPECT_RATIO ),
-			'prompt_refinement_enabled' => ! empty( $config_data['prompt_refinement_enabled'] ),
-			'prompt_style_guide'        => sanitize_textarea_field( $config_data['prompt_style_guide'] ?? '' ),
+		return array(
+			'config'  => array(
+				'api_key'                   => $api_key,
+				'default_model'             => sanitize_text_field( $config_data['default_model'] ?? ImageGenerationAbilities::DEFAULT_MODEL ),
+				'default_aspect_ratio'      => sanitize_text_field( $config_data['default_aspect_ratio'] ?? ImageGenerationAbilities::DEFAULT_ASPECT_RATIO ),
+				'prompt_refinement_enabled' => ! empty( $config_data['prompt_refinement_enabled'] ),
+				'prompt_style_guide'        => sanitize_textarea_field( $config_data['prompt_style_guide'] ?? '' ),
+			),
+			'message' => __( 'Image generation configuration saved successfully', 'data-machine' ),
 		);
-
-		if ( update_site_option( ImageGenerationAbilities::CONFIG_OPTION, $config ) ) {
-			wp_send_json_success(
-				array(
-					'message'    => __( 'Image generation configuration saved successfully', 'data-machine' ),
-					'configured' => true,
-				)
-			);
-		} else {
-			wp_send_json_error( array( 'message' => __( 'Failed to save configuration', 'data-machine' ) ) );
-		}
 	}
 
 	/**

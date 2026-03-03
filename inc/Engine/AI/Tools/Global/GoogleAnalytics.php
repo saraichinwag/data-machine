@@ -160,55 +160,43 @@ class GoogleAnalytics extends BaseTool {
 	 * @param string $tool_id     Tool identifier.
 	 * @param array  $config_data Configuration data.
 	 */
-	public function save_configuration( $tool_id, $config_data ) {
-		if ( 'google_analytics' !== $tool_id ) {
-			return;
-		}
+	protected function get_config_option_name(): string {
+		return GoogleAnalyticsAbilities::CONFIG_OPTION;
+	}
 
+	protected function validate_and_build_config( array $config_data ): array {
 		$service_account_json = $config_data['service_account_json'] ?? '';
 		$property_id          = sanitize_text_field( $config_data['property_id'] ?? '' );
 
 		if ( empty( $service_account_json ) ) {
-			wp_send_json_error( array( 'message' => __( 'Service Account JSON is required', 'data-machine' ) ) );
-			return;
+			return array( 'error' => __( 'Service Account JSON is required', 'data-machine' ) );
 		}
 
 		if ( empty( $property_id ) ) {
-			wp_send_json_error( array( 'message' => __( 'GA4 Property ID is required', 'data-machine' ) ) );
-			return;
+			return array( 'error' => __( 'GA4 Property ID is required', 'data-machine' ) );
 		}
 
-		// Validate the JSON is parseable and has required fields.
 		$parsed = json_decode( $service_account_json, true );
 
 		if ( json_last_error() !== JSON_ERROR_NONE ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid JSON in Service Account field', 'data-machine' ) ) );
-			return;
+			return array( 'error' => __( 'Invalid JSON in Service Account field', 'data-machine' ) );
 		}
 
 		if ( empty( $parsed['client_email'] ) || empty( $parsed['private_key'] ) ) {
-			wp_send_json_error( array( 'message' => __( 'Service Account JSON must contain client_email and private_key', 'data-machine' ) ) );
-			return;
+			return array( 'error' => __( 'Service Account JSON must contain client_email and private_key', 'data-machine' ) );
 		}
 
-		$config = array(
-			'service_account_json' => $service_account_json,
-			'property_id'          => $property_id,
+		return array(
+			'config'  => array(
+				'service_account_json' => $service_account_json,
+				'property_id'          => $property_id,
+			),
+			'message' => __( 'Google Analytics configuration saved successfully', 'data-machine' ),
 		);
+	}
 
-		// Clear cached token when config changes.
+	protected function before_config_save( array $config_data ): void {
 		delete_transient( GoogleAnalyticsAbilities::TOKEN_TRANSIENT );
-
-		if ( update_site_option( GoogleAnalyticsAbilities::CONFIG_OPTION, $config ) ) {
-			wp_send_json_success(
-				array(
-					'message'    => __( 'Google Analytics configuration saved successfully', 'data-machine' ),
-					'configured' => true,
-				)
-			);
-		} else {
-			wp_send_json_error( array( 'message' => __( 'Failed to save configuration', 'data-machine' ) ) );
-		}
 	}
 
 	/**

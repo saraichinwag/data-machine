@@ -343,46 +343,37 @@ class AmazonAffiliateLink extends BaseTool {
 	 * @param string $tool_id     Tool identifier.
 	 * @param array  $config_data Configuration data from form.
 	 */
-	public function save_configuration( $tool_id, $config_data ) {
-		if ( 'amazon_affiliate_link' !== $tool_id ) {
-			return;
-		}
+	protected function get_config_option_name(): string {
+		return self::CONFIG_OPTION;
+	}
 
+	protected function validate_and_build_config( array $config_data ): array {
 		$client_id     = sanitize_text_field( $config_data['client_id'] ?? '' );
 		$client_secret = sanitize_text_field( $config_data['client_secret'] ?? '' );
 		$partner_tag   = sanitize_text_field( $config_data['partner_tag'] ?? '' );
 		$marketplace   = sanitize_text_field( $config_data['marketplace'] ?? 'www.amazon.com' );
 
 		if ( empty( $client_id ) || empty( $client_secret ) || empty( $partner_tag ) ) {
-			wp_send_json_error( array( 'message' => __( 'Credential ID, Credential Secret, and Partner Tag are required.', 'data-machine' ) ) );
-			return;
+			return array( 'error' => __( 'Credential ID, Credential Secret, and Partner Tag are required.', 'data-machine' ) );
 		}
 
 		if ( ! isset( self::REGION_MAP[ $marketplace ] ) ) {
-			wp_send_json_error( array( 'message' => __( 'Invalid marketplace selected.', 'data-machine' ) ) );
-			return;
+			return array( 'error' => __( 'Invalid marketplace selected.', 'data-machine' ) );
 		}
 
-		$saved = array(
-			'client_id'     => $client_id,
-			'client_secret' => $client_secret,
-			'partner_tag'   => $partner_tag,
-			'marketplace'   => $marketplace,
+		return array(
+			'config'  => array(
+				'client_id'     => $client_id,
+				'client_secret' => $client_secret,
+				'partner_tag'   => $partner_tag,
+				'marketplace'   => $marketplace,
+			),
+			'message' => __( 'Amazon Affiliate configuration saved successfully.', 'data-machine' ),
 		);
+	}
 
-		// Clear cached token when credentials change.
+	protected function before_config_save( array $config_data ): void {
 		delete_transient( self::TOKEN_TRANSIENT );
-
-		if ( update_site_option( self::CONFIG_OPTION, $saved ) ) {
-			wp_send_json_success(
-				array(
-					'message'    => __( 'Amazon Affiliate configuration saved successfully.', 'data-machine' ),
-					'configured' => true,
-				)
-			);
-		} else {
-			wp_send_json_error( array( 'message' => __( 'Failed to save configuration.', 'data-machine' ) ) );
-		}
 	}
 
 	/**

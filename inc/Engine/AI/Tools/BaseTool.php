@@ -69,15 +69,114 @@ abstract class BaseTool {
 	}
 
 	/**
+	 * Tool identifier for configuration management.
+	 *
+	 * Set by registerConfigurationHandlers(). Used by save_configuration()
+	 * to check if this tool should handle the save request.
+	 *
+	 * @var string
+	 */
+	protected string $config_tool_id = '';
+
+	/**
 	 * Register configuration management handlers for tools that need them.
 	 *
 	 * @param string $tool_id Tool identifier for configuration
 	 */
 	protected function registerConfigurationHandlers( string $tool_id ): void {
+		$this->config_tool_id = $tool_id;
 		add_filter( 'datamachine_tool_configured', array( $this, 'check_configuration' ), 10, 2 );
 		add_filter( 'datamachine_get_tool_config', array( $this, 'get_configuration' ), 10, 2 );
 		add_filter( 'datamachine_get_tool_config_fields', array( $this, 'get_config_fields' ), 10, 2 );
-		add_action( 'datamachine_save_tool_config', array( $this, 'save_configuration' ), 10, 2 );
+		add_filter( 'datamachine_save_tool_config', array( $this, 'save_configuration' ), 10, 3 );
+	}
+
+	/**
+	 * Save tool configuration via the datamachine_save_tool_config filter.
+	 *
+	 * Handles the common pattern: check tool_id ownership, validate input,
+	 * build config, save to option, run post-save hooks. Subclasses override
+	 * validate_and_build_config() to define their specific validation and
+	 * config shape.
+	 *
+	 * Tools that need fully custom save logic can override this method directly.
+	 *
+	 * @param array|null $result      Result from a previous handler, or null.
+	 * @param string     $tool_id     Tool identifier.
+	 * @param array      $config_data Sanitized configuration data.
+	 * @return array|null Result array with success/error, or passthrough null.
+	 */
+	public function save_configuration( $result, $tool_id, $config_data ) {
+		if ( $this->config_tool_id !== $tool_id ) {
+			return $result;
+		}
+
+		$config_option = $this->get_config_option_name();
+		if ( empty( $config_option ) ) {
+			return $result;
+		}
+
+		$validated = $this->validate_and_build_config( $config_data );
+
+		if ( isset( $validated['error'] ) ) {
+			return array(
+				'success' => false,
+				'error'   => $validated['error'],
+			);
+		}
+
+		$this->before_config_save( $config_data );
+
+		if ( update_site_option( $config_option, $validated['config'] ) ) {
+			return array(
+				'success' => true,
+				'message' => $validated['message'] ?? __( 'Configuration saved successfully', 'data-machine' ),
+			);
+		}
+
+		return array(
+			'success' => false,
+			'error'   => __( 'Failed to save configuration', 'data-machine' ),
+		);
+	}
+
+	/**
+	 * Get the option name used to store this tool's configuration.
+	 *
+	 * Override in subclasses. Return empty string if the tool does not use
+	 * the standard save_configuration() flow.
+	 *
+	 * @return string Option name, or empty string.
+	 */
+	protected function get_config_option_name(): string {
+		return '';
+	}
+
+	/**
+	 * Validate input and build the config array to save.
+	 *
+	 * Override in subclasses. Return an array with either:
+	 * - 'config' key: the validated config array to pass to update_site_option()
+	 * - 'message' key (optional): custom success message
+	 * OR:
+	 * - 'error' key: validation error message (save will be aborted)
+	 *
+	 * @param array $config_data Sanitized input from the ability.
+	 * @return array{config: array, message?: string}|array{error: string}
+	 */
+	protected function validate_and_build_config( array $config_data ): array {
+		return array( 'config' => $config_data );
+	}
+
+	/**
+	 * Hook called before saving config to the option.
+	 *
+	 * Override in subclasses to clear transients, invalidate caches, etc.
+	 *
+	 * @param array $config_data The raw config data being saved.
+	 */
+	protected function before_config_save( array $config_data ): void {
+		// No-op by default. Subclasses override as needed.
 	}
 
 	/**
