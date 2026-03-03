@@ -90,15 +90,32 @@ class GitHubIssueTool extends BaseTool {
 	/**
 	 * Get tool definition for AI agents.
 	 *
+	 * Dynamically includes available repos in the description so the AI
+	 * agent knows which repos are valid targets for issue creation.
+	 *
 	 * @since 0.24.0
 	 *
 	 * @return array Tool definition array.
 	 */
 	public function getToolDefinition(): array {
+		$description = 'Create a GitHub issue in a repository. Requires a GitHub PAT configured in settings. Use for bug reports, feature requests, and task tracking.';
+
+		$repos = \DataMachine\Abilities\Fetch\GitHubAbilities::getRegisteredRepos();
+		if ( ! empty( $repos ) ) {
+			$repo_list = array_map(
+				function ( $r ) {
+					return $r['owner'] . '/' . $r['repo'] . ' (' . $r['label'] . ')';
+				},
+				$repos
+			);
+			$description .= ' Available repos: ' . implode( ', ', $repo_list ) . '.';
+			$description .= ' Route issues to the most appropriate repo based on context.';
+		}
+
 		return array(
 			'class'       => __CLASS__,
 			'method'      => 'handle_tool_call',
-			'description' => 'Create a GitHub issue in a repository. Requires a GitHub PAT configured in settings. Use for bug reports, feature requests, and task tracking.',
+			'description' => $description,
 			'parameters'  => array(
 				'title'  => array(
 					'type'        => 'string',
@@ -108,7 +125,7 @@ class GitHubIssueTool extends BaseTool {
 				'repo'   => array(
 					'type'        => 'string',
 					'required'    => false,
-					'description' => 'Repository in owner/repo format. Falls back to default repo in settings.',
+					'description' => 'Repository in owner/repo format. Falls back to default repo, then first registered repo.',
 				),
 				'body'   => array(
 					'type'        => 'string',
