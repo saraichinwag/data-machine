@@ -5,9 +5,6 @@
  * Ability endpoints for AI-powered meta description generation and diagnostics.
  * Delegates async execution to the System Agent infrastructure.
  *
- * Meta descriptions are stored in the WordPress post_excerpt field — the
- * standard WordPress field that SEO plugins read from.
- *
  * @package DataMachine\Abilities\SEO
  * @since 0.31.0
  */
@@ -17,6 +14,7 @@ namespace DataMachine\Abilities\SEO;
 use DataMachine\Abilities\PermissionHelper;
 use DataMachine\Core\PluginSettings;
 use DataMachine\Engine\AI\System\SystemAgent;
+use DataMachine\Engine\AI\System\Tasks\MetaDescriptionTask;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -43,7 +41,7 @@ class MetaDescriptionAbilities {
 				'datamachine/generate-meta-description',
 				array(
 					'label'               => 'Generate Meta Description',
-					'description'         => 'Queue system agent generation of meta descriptions (saved to post excerpt)',
+					'description'         => 'Queue system agent generation of meta descriptions for posts',
 					'category'            => 'datamachine',
 					'input_schema'        => array(
 						'type'       => 'object',
@@ -64,7 +62,7 @@ class MetaDescriptionAbilities {
 							),
 							'force'     => array(
 								'type'        => 'boolean',
-								'description' => 'Force regeneration even if post excerpt exists',
+								'description' => 'Force regeneration even if meta description exists',
 								'default'     => false,
 							),
 						),
@@ -92,7 +90,7 @@ class MetaDescriptionAbilities {
 				'datamachine/diagnose-meta-descriptions',
 				array(
 					'label'               => 'Diagnose Meta Descriptions',
-					'description'         => 'Report post excerpt (meta description) coverage for posts',
+					'description'         => 'Report meta description coverage for posts',
 					'category'            => 'datamachine',
 					'input_schema'        => array(
 						'type'       => 'object',
@@ -156,6 +154,8 @@ class MetaDescriptionAbilities {
 			);
 		}
 
+		$meta_key = apply_filters( 'datamachine_meta_description_meta_key', MetaDescriptionTask::DEFAULT_META_KEY );
+
 		// Single post mode.
 		if ( $post_id > 0 ) {
 			$post = get_post( $post_id );
@@ -168,19 +168,19 @@ class MetaDescriptionAbilities {
 				);
 			}
 
-			if ( ! $force && ! self::isExcerptMissing( $post ) ) {
+			if ( ! $force && ! self::isDescriptionMissing( $post_id, $meta_key ) ) {
 				return array(
 					'success'      => true,
 					'queued_count' => 0,
 					'post_ids'     => array(),
-					'message'      => "Post #{$post_id} already has an excerpt. Use --force to regenerate.",
+					'message'      => "Post #{$post_id} already has a meta description. Use --force to regenerate.",
 				);
 			}
 
 			$eligible = array( $post_id );
 		} else {
-			// Batch mode — find posts missing excerpts.
-			$eligible = self::findPostsMissingExcerpt( $post_type, $limit, $force );
+			// Batch mode — find posts missing meta descriptions.
+			$eligible = self::findPostsMissingDescription( $post_type, $meta_key, $limit, $force );
 		}
 
 		if ( empty( $eligible ) ) {
@@ -188,7 +188,7 @@ class MetaDescriptionAbilities {
 				'success'      => true,
 				'queued_count' => 0,
 				'post_ids'     => array(),
-				'message'      => 'No posts found missing excerpts (meta descriptions).',
+				'message'      => 'No posts found missing meta descriptions.',
 			);
 		}
 
@@ -227,7 +227,7 @@ class MetaDescriptionAbilities {
 	}
 
 	/**
-	 * Diagnose meta description coverage by checking post_excerpt.
+	 * Diagnose meta description coverage.
 	 *
 	 * @param array $input Ability input.
 	 * @return array Ability response.
@@ -236,21 +236,25 @@ class MetaDescriptionAbilities {
 		global $wpdb;
 
 		$post_type = sanitize_key( $input['post_type'] ?? 'post' );
+		$meta_key  = apply_filters( 'datamachine_meta_description_meta_key', MetaDescriptionTask::DEFAULT_META_KEY );
 
 		$total_posts = (int) $wpdb->get_var(
 			$wpdb->prepare(
-				"SELECT COUNT(*) FROM {$wpdb->posts}
-				 WHERE post_type = %s AND post_status = 'publish'",
+				"SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = %s AND post_status = 'publish'",
 				$post_type
 			)
 		);
 
 		$missing_count = (int) $wpdb->get_var(
 			$wpdb->prepare(
-				"SELECT COUNT(*) FROM {$wpdb->posts}
-				 WHERE post_type = %s
-				 AND post_status = 'publish'
-				 AND ( post_excerpt IS NULL OR post_excerpt = '' )",
+				"SELECT COUNT(*)
+				 FROM {$wpdb->posts} p
+				 LEFT JOIN {$wpdb->postmeta} m
+					ON p.ID = m.post_id AND m.meta_key = %s
+				 WHERE p.post_type = %s
+				 AND p.post_status = 'publish'
+				 AND ( m.meta_id IS NULL OR m.meta_value = '' OR m.meta_value IS NULL )",
+				$meta_key,
 				$post_type
 			)
 		);
@@ -267,18 +271,20 @@ class MetaDescriptionAbilities {
 			'has_count'     => $has_count,
 			'coverage'      => $coverage,
 			'post_type'     => $post_type,
+			'meta_key'      => $meta_key,
 		);
 	}
 
 	/**
-	 * Find published posts missing a post_excerpt.
+	 * Find published posts missing a meta description.
 	 *
 	 * @param string $post_type Post type to query.
+	 * @param string $meta_key  Meta key to check.
 	 * @param int    $limit     Maximum results.
-	 * @param bool   $force     If true, return all posts regardless of excerpt.
+	 * @param bool   $force     If true, return all posts regardless of meta.
 	 * @return int[] Post IDs.
 	 */
-	private static function findPostsMissingExcerpt( string $post_type, int $limit, bool $force ): array {
+	private static function findPostsMissingDescription( string $post_type, string $meta_key, int $limit, bool $force ): array {
 		global $wpdb;
 
 		if ( $force ) {
@@ -294,12 +300,16 @@ class MetaDescriptionAbilities {
 		} else {
 			$results = $wpdb->get_col(
 				$wpdb->prepare(
-					"SELECT ID FROM {$wpdb->posts}
-					 WHERE post_type = %s
-					 AND post_status = 'publish'
-					 AND ( post_excerpt IS NULL OR post_excerpt = '' )
-					 ORDER BY ID DESC
+					"SELECT p.ID
+					 FROM {$wpdb->posts} p
+					 LEFT JOIN {$wpdb->postmeta} m
+						ON p.ID = m.post_id AND m.meta_key = %s
+					 WHERE p.post_type = %s
+					 AND p.post_status = 'publish'
+					 AND ( m.meta_id IS NULL OR m.meta_value = '' OR m.meta_value IS NULL )
+					 ORDER BY p.ID DESC
 					 LIMIT %d",
+					$meta_key,
 					$post_type,
 					$limit
 				)
@@ -310,12 +320,16 @@ class MetaDescriptionAbilities {
 	}
 
 	/**
-	 * Check if a post's excerpt is missing or empty.
+	 * Check if a post's meta description is missing or empty.
 	 *
-	 * @param \WP_Post $post Post object.
-	 * @return bool True if excerpt is missing/empty.
+	 * @param int    $post_id  Post ID.
+	 * @param string $meta_key Meta key to check.
+	 * @return bool True if description is missing/empty.
 	 */
-	private static function isExcerptMissing( \WP_Post $post ): bool {
-		return '' === trim( $post->post_excerpt );
+	private static function isDescriptionMissing( int $post_id, string $meta_key ): bool {
+		$description = get_post_meta( $post_id, $meta_key, true );
+		$description = is_string( $description ) ? trim( $description ) : '';
+
+		return '' === $description;
 	}
 }

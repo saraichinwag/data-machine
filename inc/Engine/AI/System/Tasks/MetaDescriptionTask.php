@@ -3,12 +3,8 @@
  * Meta Description Generation Task for System Agent.
  *
  * Generates AI-powered meta descriptions for posts. Gathers post title,
- * content, and taxonomy context, sends to the configured AI provider,
- * normalizes the response, and saves to the WordPress post_excerpt field.
- *
- * WordPress post_excerpt is the standard field for meta descriptions.
- * SEO plugins (including extrachill-seo) read from post_excerpt as their
- * primary source for meta description output.
+ * excerpt, content, and taxonomy context, sends to the configured AI
+ * provider, normalizes the response, and saves to the configured meta key.
  *
  * @package DataMachine\Engine\AI\System\Tasks
  * @since 0.31.0
@@ -22,6 +18,14 @@ use DataMachine\Core\PluginSettings;
 use DataMachine\Engine\AI\RequestBuilder;
 
 class MetaDescriptionTask extends SystemTask {
+
+	/**
+	 * Meta key for storing the generated description.
+	 *
+	 * Defaults to _lean_seo_description (Lean SEO). Configurable via the
+	 * datamachine_meta_description_meta_key filter for other SEO plugins.
+	 */
+	const DEFAULT_META_KEY = '_lean_seo_description';
 
 	/**
 	 * Maximum character length for meta descriptions.
@@ -62,13 +66,13 @@ class MetaDescriptionTask extends SystemTask {
 			return;
 		}
 
-		$current_excerpt = trim( $post->post_excerpt );
+		$meta_key = $this->getMetaKey();
 
-		if ( ! $force && '' !== $current_excerpt ) {
+		if ( ! $force && ! $this->isDescriptionMissing( $post_id, $meta_key ) ) {
 			$this->completeJob( $jobId, array(
 				'skipped' => true,
 				'post_id' => $post_id,
-				'reason'  => 'Post excerpt already exists',
+				'reason'  => 'Meta description already exists',
 			) );
 			return;
 		}
@@ -112,35 +116,31 @@ class MetaDescriptionTask extends SystemTask {
 			return;
 		}
 
-		// Save to the WordPress post_excerpt field.
-		$result = wp_update_post(
-			array(
-				'ID'           => $post_id,
-				'post_excerpt' => $description,
-			),
-			true
-		);
+		// Save the meta description.
+		$current_value = get_post_meta( $post_id, $meta_key, true );
+		$updated       = update_post_meta( $post_id, $meta_key, $description );
 
-		if ( is_wp_error( $result ) ) {
-			$this->failJob( $jobId, 'Failed to update post excerpt: ' . $result->get_error_message() );
+		if ( ! $updated && $current_value !== $description ) {
+			$this->failJob( $jobId, 'Failed to save meta description to post meta' );
 			return;
 		}
 
 		// Build standardized effects array for undo.
 		$effects = array(
 			array(
-				'type'           => 'post_field_set',
+				'type'           => 'post_meta_set',
 				'target'         => array(
-					'post_id' => $post_id,
-					'field'   => 'post_excerpt',
+					'post_id'  => $post_id,
+					'meta_key' => $meta_key,
 				),
-				'previous_value' => '' !== $current_excerpt ? $current_excerpt : null,
+				'previous_value' => ! empty( $current_value ) ? $current_value : null,
 			),
 		);
 
 		$this->completeJob( $jobId, array(
 			'meta_description' => $description,
 			'post_id'          => $post_id,
+			'meta_key'         => $meta_key,
 			'char_count'       => mb_strlen( $description ),
 			'effects'          => $effects,
 			'completed_at'     => current_time( 'mysql' ),
@@ -162,14 +162,14 @@ class MetaDescriptionTask extends SystemTask {
 	public static function getTaskMeta(): array {
 		return array(
 			'label'           => 'Meta Description Generation',
-			'description'     => 'Generate SEO meta descriptions and save to post excerpt.',
+			'description'     => 'Generate SEO meta descriptions for posts using AI.',
 			'setting_key'     => 'meta_description_auto_generate_enabled',
 			'default_enabled' => true,
 		);
 	}
 
 	/**
-	 * Meta description generation supports undo — restores previous excerpt.
+	 * Meta description generation supports undo — restores previous value.
 	 *
 	 * @return bool
 	 */
@@ -178,10 +178,18 @@ class MetaDescriptionTask extends SystemTask {
 	}
 
 	/**
-	 * Build the AI prompt with post context.
+	 * Get the meta key to write descriptions to.
 	 *
-	 * Note: The current excerpt is intentionally excluded from prompt context
-	 * since we are generating a replacement for it.
+	 * Filterable so sites using Yoast, Rank Math, etc. can override.
+	 *
+	 * @return string
+	 */
+	private function getMetaKey(): string {
+		return apply_filters( 'datamachine_meta_description_meta_key', self::DEFAULT_META_KEY );
+	}
+
+	/**
+	 * Build the AI prompt with post context.
 	 *
 	 * @param \WP_Post $post Post object.
 	 * @return string Prompt text.
@@ -192,6 +200,11 @@ class MetaDescriptionTask extends SystemTask {
 		$title = wp_strip_all_tags( $post->post_title );
 		if ( ! empty( $title ) ) {
 			$context_lines[] = 'Title: ' . $title;
+		}
+
+		$excerpt = wp_strip_all_tags( $post->post_excerpt );
+		if ( ! empty( $excerpt ) ) {
+			$context_lines[] = 'Excerpt: ' . $excerpt;
 		}
 
 		// Get a clean text snippet of the post content.
@@ -233,6 +246,20 @@ class MetaDescriptionTask extends SystemTask {
 		}
 
 		return $prompt;
+	}
+
+	/**
+	 * Check if a post's meta description is missing or empty.
+	 *
+	 * @param int    $post_id  Post ID.
+	 * @param string $meta_key Meta key to check.
+	 * @return bool True if description is missing/empty.
+	 */
+	private function isDescriptionMissing( int $post_id, string $meta_key ): bool {
+		$description = get_post_meta( $post_id, $meta_key, true );
+		$description = is_string( $description ) ? trim( $description ) : '';
+
+		return '' === $description;
 	}
 
 	/**
