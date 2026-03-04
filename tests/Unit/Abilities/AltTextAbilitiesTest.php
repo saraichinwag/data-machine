@@ -413,6 +413,7 @@ class AltTextAbilitiesTest extends WP_UnitTestCase {
 	 */
 	public function test_permission_callback(): void {
 		wp_set_current_user( 0 );
+		add_filter( 'datamachine_cli_bypass_permissions', '__return_false' );
 
 		$ability = wp_get_ability( 'datamachine/generate-alt-text' );
 		$this->assertNotNull( $ability );
@@ -421,8 +422,7 @@ class AltTextAbilitiesTest extends WP_UnitTestCase {
 			'attachment_id' => $this->test_image_id
 		] );
 
-		$this->assertIsArray( $result );
-		$this->assertFalse( $result['success'] ?? true );
-		$this->assertArrayHasKey( 'error', $result );
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertEquals( 'ability_invalid_permissions', $result->get_error_code() );
 	}
 }

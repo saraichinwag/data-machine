@@ -67,6 +67,7 @@ class LogAbilitiesTest extends \WP_UnitTestCase {
 		}
 
 		wp_set_current_user(0);
+		add_filter( 'datamachine_cli_bypass_permissions', '__return_false' );
 
 		$ability = wp_get_ability('datamachine/write-to-log');
 		$result = $ability->execute([
@@ -74,8 +75,8 @@ class LogAbilitiesTest extends \WP_UnitTestCase {
 			'message' => 'Test log entry'
 		]);
 
-		$this->assertFalse($result['success']);
-		$this->assertArrayHasKey('error_code', $result);
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertEquals( 'ability_invalid_permissions', $result->get_error_code() );
 	}
 
 	public function testWrite_toLog_withInvalidLevel_returnsError(): void {
@@ -90,8 +91,8 @@ class LogAbilitiesTest extends \WP_UnitTestCase {
 			'message' => 'Test'
 		]);
 
-		$this->assertFalse($result['success']);
-		$this->assertArrayHasKey('error_code', $result);
+		// WP 6.9 validates input against schema — invalid enum value returns WP_Error
+		$this->assertInstanceOf( \WP_Error::class, $result );
 	}
 
 	public function testWrite_toLog_withContext_includesAgentType(): void {
@@ -138,8 +139,8 @@ class LogAbilitiesTest extends \WP_UnitTestCase {
 		$result = $ability->execute(['agent_type' => 'pipeline']);
 
 		$this->assertTrue($result['success']);
-		$this->assertArrayHasKey('files_cleared', $result['data']);
-		$this->assertEquals(['pipeline'], $result['data']['files_cleared']);
+		$this->assertArrayHasKey('files_cleared', $result);
+		$this->assertEquals(['pipeline'], $result['files_cleared']);
 	}
 
 	public function testClearLogs_withAll_clearsAllAgentTypes(): void {
@@ -152,7 +153,7 @@ class LogAbilitiesTest extends \WP_UnitTestCase {
 		$result = $ability->execute(['agent_type' => 'all']);
 
 		$this->assertTrue($result['success']);
-		$this->assertEquals(['all'], $result['data']['files_cleared']);
+		$this->assertEquals(['all'], $result['files_cleared']);
 	}
 
 	public function testClearLogs_withoutPermissions_returnsPermissionDenied(): void {
@@ -162,11 +163,12 @@ class LogAbilitiesTest extends \WP_UnitTestCase {
 		}
 
 		wp_set_current_user(0);
+		add_filter( 'datamachine_cli_bypass_permissions', '__return_false' );
 
 		$ability = wp_get_ability('datamachine/clear-logs');
 		$result = $ability->execute(['agent_type' => 'pipeline']);
 
-		$this->assertFalse($result['success']);
-		$this->assertArrayHasKey('error_code', $result);
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertEquals( 'ability_invalid_permissions', $result->get_error_code() );
 	}
 }

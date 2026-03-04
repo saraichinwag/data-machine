@@ -50,9 +50,21 @@ class PermissionHelper {
 	 * @return bool True if permission granted.
 	 */
 	public static function can_manage(): bool {
-		// WP-CLI always allowed.
+		// WP-CLI always allowed (filterable for testing).
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {
-			return true;
+			/**
+			 * Filters whether WP-CLI context bypasses permission checks.
+			 *
+			 * In production, WP-CLI always has full access. During testing,
+			 * this filter allows permission denial tests to run by returning false.
+			 *
+			 * @since 0.31.0
+			 *
+			 * @param bool $bypass True to bypass permission check (default: true).
+			 */
+			if ( apply_filters( 'datamachine_cli_bypass_permissions', true ) ) {
+				return true;
+			}
 		}
 
 		// Action Scheduler background processing context.

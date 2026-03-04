@@ -115,6 +115,7 @@ class AuthAbilitiesTest extends WP_UnitTestCase {
 
 	public function test_permission_callback(): void {
 		wp_set_current_user( 0 );
+		add_filter( 'datamachine_cli_bypass_permissions', '__return_false' );
 
 		$ability = wp_get_ability( 'datamachine/get-auth-status' );
 		$this->assertNotNull( $ability );
@@ -123,9 +124,8 @@ class AuthAbilitiesTest extends WP_UnitTestCase {
 			array( 'handler_slug' => 'test_handler' )
 		);
 
-		$this->assertIsArray( $result );
-		$this->assertFalse( $result['success'] ?? true );
-		$this->assertArrayHasKey( 'error', $result );
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertEquals( 'ability_invalid_permissions', $result->get_error_code() );
 
 		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
 		wp_set_current_user( $user_id );

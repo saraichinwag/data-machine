@@ -124,12 +124,14 @@ class FlowsEndpointTest extends WP_UnitTestCase {
 	}
 
 	public function test_permission_denied_for_non_admin(): void {
-		wp_set_current_user(0);
+		wp_set_current_user( 0 );
+		add_filter( 'datamachine_cli_bypass_permissions', '__return_false' );
 
-		$request = new WP_REST_Request('GET', '/datamachine/v1/flows');
+		$request = new \WP_REST_Request( 'GET', '/datamachine/v1/flows' );
 
-		$response = Flows::handle_get_flows($request);
+		$response = Flows::handle_get_flows( $request );
 
-		$this->assertSame(403, $response->get_status());
+		// execute() returns WP_Error when permission denied — handler passes it through
+		$this->assertInstanceOf( \WP_Error::class, $response );
 	}
 }
