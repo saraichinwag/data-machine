@@ -179,18 +179,20 @@ class LocalSearchAbilitiesTest extends WP_UnitTestCase {
 		$ability = wp_get_ability( 'datamachine/local-search' );
 		$this->assertNotNull( $ability );
 
-		$callback = $ability->get_permission_callback();
-		$this->assertTrue( call_user_func( $callback ) );
+		$result = $ability->execute( array( 'query' => 'test' ) );
+		$this->assertNotInstanceOf( \WP_Error::class, $result );
 	}
 
 	public function test_permission_callback_without_permissions(): void {
 		wp_set_current_user( 0 );
+		add_filter( 'datamachine_cli_bypass_permissions', '__return_false' );
 
 		$ability = wp_get_ability( 'datamachine/local-search' );
 		$this->assertNotNull( $ability );
 
-		$callback = $ability->get_permission_callback();
-		$this->assertFalse( call_user_func( $callback ) );
+		$result = $ability->execute( array( 'query' => 'test' ) );
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertEquals( 'ability_invalid_permissions', $result->get_error_code() );
 
 		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
 		wp_set_current_user( $user_id );

@@ -490,6 +490,7 @@ class PipelineStepAbilitiesTest extends WP_UnitTestCase {
 
 	public function test_permission_callback(): void {
 		wp_set_current_user( 0 );
+		add_filter( 'datamachine_cli_bypass_permissions', '__return_false' );
 
 		$ability = wp_get_ability( 'datamachine/get-pipeline-steps' );
 		$this->assertNotNull( $ability );
@@ -498,9 +499,8 @@ class PipelineStepAbilitiesTest extends WP_UnitTestCase {
 			array( 'pipeline_id' => $this->test_pipeline_id )
 		);
 
-		$this->assertIsArray( $result );
-		$this->assertFalse( $result['success'] ?? true );
-		$this->assertArrayHasKey( 'error', $result );
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertEquals( 'ability_invalid_permissions', $result->get_error_code() );
 
 		$user_id = self::factory()->user->create( array( 'role' => 'administrator' ) );
 		wp_set_current_user( $user_id );
