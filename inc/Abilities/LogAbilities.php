@@ -12,7 +12,6 @@ namespace DataMachine\Abilities;
 
 use DataMachine\Abilities\PermissionHelper;
 
-use DataMachine\Engine\Logger;
 use DataMachine\Engine\AI\AgentType;
 
 defined( 'ABSPATH' ) || exit;
@@ -280,9 +279,18 @@ class LogAbilities {
 		$message = $input['message'];
 		$context = $input['context'] ?? array();
 
-		$logged = Logger::write( $level, $message, $context );
+		$valid_levels = datamachine_get_valid_log_levels();
+		if ( ! in_array( $level, $valid_levels, true ) ) {
+			return array(
+				'success'    => false,
+				'error_code' => 'invalid_level',
+				'error'      => 'Invalid log level: ' . $level,
+			);
+		}
 
-		if ( $logged ) {
+		$function_name = 'datamachine_log_' . $level;
+		if ( function_exists( $function_name ) ) {
+			$function_name( $message, $context );
 			return array(
 				'success' => true,
 				'message' => 'Log entry written',
