@@ -47,6 +47,7 @@ jobs:
           version: 'latest'
           extension: wordpress
           commands: lint,test,audit
+          lint-changed-only: true
           component: data-machine
           settings: '{"database_type": "mysql"}'
           php-version: '8.2'
