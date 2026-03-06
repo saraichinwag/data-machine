@@ -2,6 +2,41 @@
 
 All notable changes to Data Machine will be documented in this file.
 
+## [0.37.0] - 2026-03-06
+
+### Added
+- multi-agent support — DB schema user_id scoping, directive user context resolution, CLI --user flag (#568, #572, #574)
+- granular WordPress capabilities and PermissionHelper v2 (#651)
+- layered memory architecture — site/agent/user memory file scoping (#654)
+- first-class agent entities with chat session wiring (#655)
+- layered architecture migration foundation (#647)
+- workspace global read tools, git abilities, scoped fetch/publish handlers (#620, #621, #622)
+- agent tools settings split into dedicated tab (#635)
+- MySQL service container for CI test workflow
+- homeboy lint autofix and baseline
+
+### Changed
+- CI: split PR checks into separate lint, test, audit jobs
+- CI: release check workflow on push tags only (not every main merge)
+- CI: scoped test and audit for PRs (changed files only)
+
+### Fixed
+- normalize malformed shared AI key storage — self-heal serialized string back to array (#660)
+- default max_items to 1 at runtime to prevent unbounded batch fan-out
+- nullable output schema types for CreatePipeline and CreateFlow abilities (#577)
+- logger class import fatal redeclare crash in tests (#591)
+- permission callback tests — WP-CLI bypass filter, WP 6.9 error codes (#592)
+- FlowsCommandTest rewrite for Abilities API (#594)
+- pre_http_request filter signature for WP 6.9 (#595)
+- tool tests rewrite for WP 6.9 Abilities API (#596)
+- ImageGenerationPromptRefinement and JobAbilities test rewrites (#606)
+- AI step emitting conversation turns as DataPackets (#609)
+- fail orphaned batch parents instead of leaving stuck processing jobs (#627)
+- classify update-step tool misses as agent_skipped (#628)
+- include schedule and max_items in flows list output (#629)
+- align global AI tool classes with BaseTool conventions (#632)
+- complete global tool convention methods for QueueValidator
+
 ## [0.36.0] - 2026-03-03
 
 ### Added
