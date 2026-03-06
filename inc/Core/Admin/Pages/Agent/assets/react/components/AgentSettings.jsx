@@ -1,7 +1,7 @@
 /**
  * AgentSettings Component
  *
- * Agent configuration settings: tools, provider/model, site context, turns, webhook.
+ * Agent configuration settings: provider/model, site context, turns, webhook.
  * Transplanted from the former Settings → Agent tab.
  */
 
@@ -9,7 +9,6 @@ import { useState, useEffect, useCallback } from '@wordpress/element';
 import { Button } from '@wordpress/components';
 import { useSettings, useUpdateSettings } from '@shared/queries/settings';
 import { client } from '@shared/utils/api';
-import ToolConfigModal from '@shared/components/ToolConfigModal';
 import { useFormState } from '@shared/hooks/useFormState';
 import SettingsSaveBar, {
 	useSaveStatus,
@@ -18,7 +17,6 @@ import ProviderModelSelector from '@shared/components/ai/ProviderModelSelector';
 import { useProviders } from '@shared/queries/providers';
 
 const DEFAULTS = {
-	disabled_tools: {},
 	default_provider: '',
 	default_model: '',
 	agent_models: {},
@@ -30,7 +28,6 @@ const AgentSettings = () => {
 	const { data, isLoading, error } = useSettings();
 	const { data: providersData } = useProviders();
 	const updateMutation = useUpdateSettings();
-	const [ openToolId, setOpenToolId ] = useState( null );
 	const [ pingSecret, setPingSecret ] = useState( '' );
 	const [ pingSecretVisible, setPingSecretVisible ] = useState( false );
 	const [ pingCopied, setPingCopied ] = useState( false );
@@ -88,7 +85,6 @@ const AgentSettings = () => {
 	useEffect( () => {
 		if ( data?.settings ) {
 			form.reset( {
-				disabled_tools: data.settings.disabled_tools || {},
 				default_provider: data.settings.default_provider || '',
 				default_model: data.settings.default_model || '',
 				agent_models: data.settings.agent_models || {},
@@ -102,17 +98,6 @@ const AgentSettings = () => {
 
 	const updateField = ( field, value ) => {
 		form.updateField( field, value );
-		save.markChanged();
-	};
-
-	const handleToolToggle = ( toolName, enabled ) => {
-		const newTools = { ...form.data.disabled_tools };
-		if ( enabled ) {
-			delete newTools[ toolName ];
-		} else {
-			newTools[ toolName ] = true;
-		}
-		form.updateField( 'disabled_tools', newTools );
 		save.markChanged();
 	};
 
@@ -141,122 +126,11 @@ const AgentSettings = () => {
 		);
 	}
 
-	const globalTools = data?.global_tools || {};
-
 	return (
 		<div className="datamachine-agent-settings">
 			<h2 className="datamachine-agent-settings-title">Configuration</h2>
-
-			{ openToolId && (
-				<ToolConfigModal
-					toolId={ openToolId }
-					isOpen={ Boolean( openToolId ) }
-					onRequestClose={ () => setOpenToolId( null ) }
-				/>
-			) }
 			<table className="form-table">
 				<tbody>
-					<tr>
-						<th scope="row">Tool Configuration</th>
-						<td>
-							{ Object.keys( globalTools ).length > 0 ? (
-								<div className="datamachine-tool-config-grid">
-									{ Object.entries( globalTools ).map(
-										( [ toolName, toolConfig ] ) => {
-											const isConfigured =
-												toolConfig.is_configured;
-											const isEnabled =
-												! ( form.data.disabled_tools?.[
-													toolName
-												] ?? false );
-											const toolLabel =
-												toolConfig.label ||
-												toolName.replace( /_/g, ' ' );
-
-											return (
-												<div
-													key={ toolName }
-													className="datamachine-tool-config-item"
-												>
-													<h4>{ toolLabel }</h4>
-													{ toolConfig.description && (
-														<p className="description">
-															{
-																toolConfig.description
-															}
-														</p>
-													) }
-													<div className="datamachine-tool-controls">
-														<span
-															className={ `datamachine-config-status ${
-																isConfigured
-																	? 'configured'
-																	: 'not-configured'
-															}` }
-														>
-															{ isConfigured
-																? 'Configured'
-																: 'Not Configured' }
-														</span>
-
-														{ toolConfig.requires_configuration && (
-															<Button
-																variant="secondary"
-																onClick={ () =>
-																	setOpenToolId(
-																		toolName
-																	)
-																}
-															>
-																Configure
-															</Button>
-														) }
-
-														{ isConfigured ? (
-															<label className="datamachine-tool-enabled-toggle">
-																<input
-																	type="checkbox"
-																	checked={
-																		isEnabled
-																	}
-																	onChange={ (
-																		e
-																	) =>
-																		handleToolToggle(
-																			toolName,
-																			e
-																				.target
-																				.checked
-																		)
-																	}
-																/>
-																Enable for
-																agents
-															</label>
-														) : (
-															<label className="datamachine-tool-enabled-toggle datamachine-tool-disabled">
-																<input
-																	type="checkbox"
-																	disabled
-																/>
-																<span className="description">
-																	Configure to
-																	enable
-																</span>
-															</label>
-														) }
-													</div>
-												</div>
-											);
-										}
-									) }
-								</div>
-							) : (
-								<p>No global tools are currently available.</p>
-							) }
-						</td>
-					</tr>
-
 					<tr>
 						<th scope="row">Default AI Provider &amp; Model</th>
 						<td>

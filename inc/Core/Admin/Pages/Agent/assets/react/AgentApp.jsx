@@ -2,7 +2,7 @@
  * AgentApp Component
  *
  * Root container for the Agent admin page.
- * Tabbed layout: Memory, System Tasks, and Configuration.
+ * Tabbed layout: Memory, System Tasks, Tools, and Configuration.
  */
 
 /**
@@ -18,12 +18,14 @@ import AgentFileList from './components/AgentFileList';
 import AgentFileEditor from './components/AgentFileEditor';
 import AgentEmptyState from './components/AgentEmptyState';
 import AgentSettings from './components/AgentSettings';
+import AgentToolsTab from './components/AgentToolsTab';
 import SystemTasksTab from './components/SystemTasksTab';
 import { useAgentFiles } from './queries/agentFiles';
 
 const TABS = [
 	{ name: 'memory', title: 'Memory' },
 	{ name: 'system-tasks', title: 'System Tasks' },
+	{ name: 'tools', title: 'Tools' },
 	{ name: 'configuration', title: 'Configuration' },
 ];
 
@@ -72,6 +74,10 @@ const AgentApp = () => {
 
 					if ( tab.name === 'system-tasks' ) {
 						return <SystemTasksTab />;
+					}
+
+					if ( tab.name === 'tools' ) {
+						return <AgentToolsTab />;
 					}
 
 					return <AgentSettings />;
