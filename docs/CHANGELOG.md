@@ -2,6 +2,19 @@
 
 All notable changes to Data Machine will be documented in this file.
 
+## [0.37.1] - 2026-03-07
+
+### Changed
+- split release workflow into 3 independent jobs (#665)
+- decompose FileAbilities into AgentFileAbilities + FlowFileAbilities
+
+### Fixed
+- align named argument `class` → `class_name` across all step type callers
+- replace raw PHP file operations with WP equivalents (#668)
+- batch lint autofix — 72 violations across 53 files (#667)
+- auto-fix 59 PHPCS violations via homeboy lint --fix (#664)
+- auto-fix 30 Yoda and short ternary violations (#663)
+
 ## [0.37.0] - 2026-03-06
 
 ### Added
