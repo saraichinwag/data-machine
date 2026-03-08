@@ -298,50 +298,28 @@ class ToolPolicyResolverTest extends WP_UnitTestCase {
 	}
 
 	// ============================================
-	// PARITY WITH EXISTING IMPLEMENTATIONS
+	// DEPRECATED METHOD DELEGATION
 	// ============================================
 
-	public function test_chat_parity_with_tool_manager(): void {
-		// ToolPolicyResolver chat surface should return at least the same
-		// tool set as ToolManager::getAvailableToolsForChat().
-		$manager_tools  = ( new ToolManager() )->getAvailableToolsForChat();
-		$resolver_tools = $this->resolver->resolve( array(
-			'surface' => ToolPolicyResolver::SURFACE_CHAT,
-		) );
-
-		// The resolver applies is_tool_available() to chat tools, which
-		// the old method didn't. So the resolver may have fewer tools if
-		// some chat tools fail the availability check. But all globally
-		// available tools should still be present.
-		$global_tools = ( new ToolManager() )->get_global_tools();
-		foreach ( $global_tools as $tool_name => $tool_config ) {
-			if ( isset( $manager_tools[ $tool_name ] ) ) {
-				$this->assertArrayHasKey(
-					$tool_name,
-					$resolver_tools,
-					"Global tool '{$tool_name}' present in manager should also be in resolver"
-				);
-			}
-		}
-	}
-
-	public function test_pipeline_parity_with_tool_executor(): void {
-		// With no adjacent steps and no pipeline_step_id, both should
-		// return the same global tools.
+	public function test_deprecated_executor_delegates_to_resolver(): void {
+		// ToolExecutor::getAvailableTools() now delegates to the resolver.
+		// Verify identical output.
 		$executor_tools = \DataMachine\Engine\AI\Tools\ToolExecutor::getAvailableTools( null, null, null, array() );
 		$resolver_tools = $this->resolver->resolve( array(
 			'surface' => ToolPolicyResolver::SURFACE_PIPELINE,
 		) );
 
-		// Both should have global tools.
-		foreach ( $executor_tools as $tool_name => $tool_config ) {
-			if ( ! isset( $tool_config['handler'] ) ) {
-				$this->assertArrayHasKey(
-					$tool_name,
-					$resolver_tools,
-					"Non-handler tool '{$tool_name}' from executor should also be in resolver"
-				);
-			}
-		}
+		$this->assertSame( $executor_tools, $resolver_tools );
+	}
+
+	public function test_deprecated_manager_delegates_to_resolver(): void {
+		// ToolManager::getAvailableToolsForChat() now delegates to the resolver.
+		// Verify identical output.
+		$manager_tools  = ( new ToolManager() )->getAvailableToolsForChat();
+		$resolver_tools = $this->resolver->resolve( array(
+			'surface' => ToolPolicyResolver::SURFACE_CHAT,
+		) );
+
+		$this->assertSame( $manager_tools, $resolver_tools );
 	}
 }
