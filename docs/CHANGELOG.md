@@ -2,7 +2,7 @@
 
 All notable changes to Data Machine will be documented in this file.
 
-## Unreleased
+## [0.38.0] - 2026-03-08
 
 ### Added
 - feat(#704): publish-level duplicate detection for wordpress_publish handler (#706)
@@ -30,6 +30,7 @@ All notable changes to Data Machine will be documented in this file.
 - prevent duplicate inline reviews from parallel jobs (#691)
 - suppress known-safe DB queries + fix corrupted is_writable calls (#669)
 - GSC submit_sitemap — upgrade OAuth scope to read-write and add Content-Length header (#656)
+- sync version targets to 0.37.1
 
 ## [0.37.1] - 2026-03-07
 
