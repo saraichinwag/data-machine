@@ -101,6 +101,7 @@ function datamachine_run_datamachine_plugin() {
 	\DataMachine\Api\AgentFiles::register();
 	\DataMachine\Api\FlowFiles::register();
 	\DataMachine\Api\Users::register();
+	\DataMachine\Api\Agents::register();
 	\DataMachine\Api\Logs::register();
 	\DataMachine\Api\ProcessedItems::register();
 	\DataMachine\Api\Jobs::register();
@@ -435,6 +436,7 @@ function datamachine_activate_for_site() {
 
 	// Ensure first-class agents table exists.
 	\DataMachine\Core\Database\Agents\Agents::create_table();
+	\DataMachine\Core\Database\Agents\AgentAccess::create_table();
 
 	$db_pipelines = new \DataMachine\Core\Database\Pipelines\Pipelines();
 	$db_pipelines->create_table();
@@ -468,6 +470,9 @@ function datamachine_activate_for_site() {
 
 	// Migrate flow_config handler keys from singular to plural (idempotent).
 	datamachine_migrate_handler_keys_to_plural();
+
+	// Backfill agent_id on pipelines, flows, and jobs from user_id→owner_id mapping (idempotent).
+	datamachine_backfill_agent_ids();
 
 	// Re-schedule any flows with non-manual scheduling
 	datamachine_activate_scheduled_flows();
