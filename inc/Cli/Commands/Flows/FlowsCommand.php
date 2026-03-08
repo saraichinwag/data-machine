@@ -196,6 +196,13 @@ class FlowsCommand extends BaseCommand {
 			return;
 		}
 
+		// Delegate 'bulk-config' subcommand to BulkConfigCommand.
+		if ( ! empty( $args ) && 'bulk-config' === $args[0] ) {
+			$bulk_config = new BulkConfigCommand();
+			$bulk_config->dispatch( array_slice( $args, 1 ), $assoc_args );
+			return;
+		}
+
 		// Handle 'memory-files' subcommand.
 		if ( ! empty( $args ) && 'memory-files' === $args[0] ) {
 			if ( ! isset( $args[1] ) ) {
