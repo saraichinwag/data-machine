@@ -44,12 +44,16 @@ class AgentMemoryAbilities {
 					'input_schema'        => array(
 						'type'       => 'object',
 						'properties' => array(
-							'user_id' => array(
+							'agent_id' => array(
+								'type'        => array( 'integer', 'null' ),
+								'description' => 'Agent ID for agent-scoped memory. Takes priority over user_id when provided.',
+							),
+							'user_id'  => array(
 								'type'        => 'integer',
 								'description' => 'WordPress user ID for multi-agent scoping. Defaults to 0 (shared agent).',
 								'default'     => 0,
 							),
-							'section' => array(
+							'section'  => array(
 								'type'        => 'string',
 								'description' => 'Section name to read (without ##). If omitted, returns the full file.',
 							),
@@ -83,20 +87,24 @@ class AgentMemoryAbilities {
 					'input_schema'        => array(
 						'type'       => 'object',
 						'properties' => array(
-							'user_id' => array(
+							'agent_id' => array(
+								'type'        => array( 'integer', 'null' ),
+								'description' => 'Agent ID for agent-scoped memory. Takes priority over user_id when provided.',
+							),
+							'user_id'  => array(
 								'type'        => 'integer',
 								'description' => 'WordPress user ID for multi-agent scoping. Defaults to 0 (shared agent).',
 								'default'     => 0,
 							),
-							'section' => array(
+							'section'  => array(
 								'type'        => 'string',
 								'description' => 'Section name (without ##). Created if it does not exist.',
 							),
-							'content' => array(
+							'content'  => array(
 								'type'        => 'string',
 								'description' => 'Content to write to the section.',
 							),
-							'mode'    => array(
+							'mode'     => array(
 								'type'        => 'string',
 								'enum'        => array( 'set', 'append' ),
 								'description' => 'Write mode: "set" replaces section content, "append" adds to end.',
@@ -127,16 +135,20 @@ class AgentMemoryAbilities {
 						'type'       => 'object',
 						'required'   => array( 'query' ),
 						'properties' => array(
-							'user_id' => array(
+							'agent_id' => array(
+								'type'        => array( 'integer', 'null' ),
+								'description' => 'Agent ID for agent-scoped memory. Takes priority over user_id when provided.',
+							),
+							'user_id'  => array(
 								'type'        => 'integer',
 								'description' => 'WordPress user ID for multi-agent scoping. Defaults to 0 (shared agent).',
 								'default'     => 0,
 							),
-							'query'   => array(
+							'query'    => array(
 								'type'        => 'string',
 								'description' => 'Search term (case-insensitive substring match).',
 							),
-							'section' => array(
+							'section'  => array(
 								'type'        => 'string',
 								'description' => 'Optional section name to limit search to (without ##).',
 							),
@@ -177,7 +189,11 @@ class AgentMemoryAbilities {
 					'input_schema'        => array(
 						'type'       => 'object',
 						'properties' => array(
-							'user_id' => array(
+							'agent_id' => array(
+								'type'        => array( 'integer', 'null' ),
+								'description' => 'Agent ID for agent-scoped memory. Takes priority over user_id when provided.',
+							),
+							'user_id'  => array(
 								'type'        => 'integer',
 								'description' => 'WordPress user ID for multi-agent scoping. Defaults to 0 (shared agent).',
 								'default'     => 0,

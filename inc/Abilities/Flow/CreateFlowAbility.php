@@ -43,6 +43,10 @@ class CreateFlowAbility {
 								'type'        => 'integer',
 								'description' => __( 'Pipeline ID to create flow for (single mode)', 'data-machine' ),
 							),
+							'agent_id'           => array(
+								'type'        => array( 'integer', 'null' ),
+								'description' => __( 'Agent ID to scope the flow to. When provided, the flow is owned by this agent.', 'data-machine' ),
+							),
 							'flow_name'          => array(
 								'type'        => 'string',
 								'default'     => 'Flow',
@@ -162,6 +166,7 @@ class CreateFlowAbility {
 			$flow_name = 'Flow';
 		}
 
+		$agent_id          = isset( $input['agent_id'] ) ? (int) $input['agent_id'] : null;
 		$scheduling_config = $input['scheduling_config'] ?? array( 'interval' => 'manual' );
 		$flow_config       = $input['flow_config'] ?? array();
 
@@ -171,6 +176,10 @@ class CreateFlowAbility {
 			'flow_config'       => $flow_config,
 			'scheduling_config' => $scheduling_config,
 		);
+
+		if ( null !== $agent_id && $agent_id > 0 ) {
+			$flow_data['agent_id'] = $agent_id;
+		}
 
 		$flow_id = $this->db_flows->create_flow( $flow_data );
 		if ( ! $flow_id ) {
