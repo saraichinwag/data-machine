@@ -12,6 +12,10 @@ import apiFetch from '@wordpress/api-fetch';
  * External dependencies
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+/**
+ * Internal dependencies
+ */
+import { client } from '@shared/utils/api';
 
 /**
  * Fetch existing chat session
@@ -86,6 +90,9 @@ export function useChatMutation() {
 /**
  * Fetch list of chat sessions for current user
  *
+ * Uses the shared API client so the agent interceptor automatically
+ * injects agent_id when an agent is selected in the AgentSwitcher.
+ *
  * @param {number} limit     - Maximum sessions to return
  * @param {string} agentType - Agent type filter (chat, cli)
  * @return {Object} TanStack Query object with sessions data
@@ -94,9 +101,9 @@ export function useChatSessions( limit = 20, agentType = 'chat' ) {
 	return useQuery( {
 		queryKey: [ 'chat-sessions', limit, agentType ],
 		queryFn: async () => {
-			const response = await apiFetch( {
-				path: `/datamachine/v1/chat/sessions?limit=${ limit }&agent_type=${ agentType }`,
-				method: 'GET',
+			const response = await client.get( '/chat/sessions', {
+				limit,
+				agent_type: agentType,
 			} );
 
 			if ( ! response.success ) {

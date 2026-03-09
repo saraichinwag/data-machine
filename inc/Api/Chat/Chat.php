@@ -212,6 +212,12 @@ class Chat {
 							return in_array( $param, array( 'chat', 'pipeline', 'system' ), true );
 						},
 					),
+					'agent_id'   => array(
+						'type'              => 'integer',
+						'required'          => false,
+						'description'       => __( 'Filter sessions by agent ID', 'data-machine' ),
+						'sanitize_callback' => 'absint',
+					),
 				),
 			)
 		);
@@ -319,12 +325,14 @@ class Chat {
 	 * @return WP_REST_Response Response data.
 	 */
 	public static function list_sessions( WP_REST_Request $request ) {
-		$ability = function_exists( 'wp_get_ability' ) ? wp_get_ability( 'datamachine/list-chat-sessions' ) : null;
+		$agent_id = PermissionHelper::resolve_scoped_agent_id( $request );
+		$ability  = function_exists( 'wp_get_ability' ) ? wp_get_ability( 'datamachine/list-chat-sessions' ) : null;
 
 		if ( $ability ) {
 			$result = $ability->execute(
 				array(
 					'user_id'    => get_current_user_id(),
+					'agent_id'   => $agent_id,
 					'limit'      => (int) $request->get_param( 'limit' ),
 					'offset'     => (int) $request->get_param( 'offset' ),
 					'agent_type' => $request->get_param( 'agent_type' ),
@@ -346,8 +354,8 @@ class Chat {
 		$agent_type = $request->get_param( 'agent_type' );
 
 		$chat_db  = new \DataMachine\Core\Database\Chat\Chat();
-		$sessions = $chat_db->get_user_sessions( $user_id, $limit, $offset, $agent_type );
-		$total    = $chat_db->get_user_session_count( $user_id, $agent_type );
+		$sessions = $chat_db->get_user_sessions( $user_id, $limit, $offset, $agent_type, $agent_id );
+		$total    = $chat_db->get_user_session_count( $user_id, $agent_type, $agent_id );
 
 		return rest_ensure_response(
 			array(

@@ -378,34 +378,52 @@ class Chat extends BaseRepository {
 	/**
 	 * Get all sessions for a user
 	 *
-	 * @param int    $user_id    WordPress user ID
-	 * @param int    $limit      Maximum sessions to return
-	 * @param int    $offset     Pagination offset
-	 * @param string $agent_type Agent type filter (chat, pipeline, system)
+	 * @param int      $user_id    WordPress user ID
+	 * @param int      $limit      Maximum sessions to return
+	 * @param int      $offset     Pagination offset
+	 * @param string   $agent_type Agent type filter (chat, pipeline, system)
+	 * @param int|null $agent_id   Optional agent ID filter (null = no filter)
 	 * @return array Array of session data
 	 */
 	public function get_user_sessions(
 		int $user_id,
 		int $limit = 20,
 		int $offset = 0,
-		string $agent_type = 'chat'
+		string $agent_type = 'chat',
+		?int $agent_id = null
 	): array {
 		global $wpdb;
 
 		$table_name = self::get_prefixed_table_name();
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$sessions = $wpdb->get_results(
-			$wpdb->prepare(
-				'SELECT * FROM %i WHERE user_id = %d AND agent_type = %s ORDER BY updated_at DESC LIMIT %d OFFSET %d',
-				$table_name,
-				$user_id,
-				$agent_type,
-				$limit,
-				$offset
-			),
-			ARRAY_A
-		);
+		if ( null !== $agent_id ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$sessions = $wpdb->get_results(
+				$wpdb->prepare(
+					'SELECT * FROM %i WHERE user_id = %d AND agent_type = %s AND agent_id = %d ORDER BY updated_at DESC LIMIT %d OFFSET %d',
+					$table_name,
+					$user_id,
+					$agent_type,
+					$agent_id,
+					$limit,
+					$offset
+				),
+				ARRAY_A
+			);
+		} else {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$sessions = $wpdb->get_results(
+				$wpdb->prepare(
+					'SELECT * FROM %i WHERE user_id = %d AND agent_type = %s ORDER BY updated_at DESC LIMIT %d OFFSET %d',
+					$table_name,
+					$user_id,
+					$agent_type,
+					$limit,
+					$offset
+				),
+				ARRAY_A
+			);
+		}
 
 		if ( ! $sessions ) {
 			return array();
@@ -438,27 +456,42 @@ class Chat extends BaseRepository {
 	/**
 	 * Get total session count for a user
 	 *
-	 * @param int    $user_id    WordPress user ID
-	 * @param string $agent_type Agent type filter (chat, pipeline, system)
+	 * @param int      $user_id    WordPress user ID
+	 * @param string   $agent_type Agent type filter (chat, pipeline, system)
+	 * @param int|null $agent_id   Optional agent ID filter (null = no filter)
 	 * @return int Total session count
 	 */
 	public function get_user_session_count(
 		int $user_id,
-		string $agent_type = 'chat'
+		string $agent_type = 'chat',
+		?int $agent_id = null
 	): int {
 		global $wpdb;
 
 		$table_name = self::get_prefixed_table_name();
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$count = $wpdb->get_var(
-			$wpdb->prepare(
-				'SELECT COUNT(*) FROM %i WHERE user_id = %d AND agent_type = %s',
-				$table_name,
-				$user_id,
-				$agent_type
-			)
-		);
+		if ( null !== $agent_id ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$count = $wpdb->get_var(
+				$wpdb->prepare(
+					'SELECT COUNT(*) FROM %i WHERE user_id = %d AND agent_type = %s AND agent_id = %d',
+					$table_name,
+					$user_id,
+					$agent_type,
+					$agent_id
+				)
+			);
+		} else {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+			$count = $wpdb->get_var(
+				$wpdb->prepare(
+					'SELECT COUNT(*) FROM %i WHERE user_id = %d AND agent_type = %s',
+					$table_name,
+					$user_id,
+					$agent_type
+				)
+			);
+		}
 
 		return (int) $count;
 	}

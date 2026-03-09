@@ -44,6 +44,10 @@ class ListChatSessionsAbility {
 								'type'        => 'integer',
 								'description' => __( 'User ID to list sessions for.', 'data-machine' ),
 							),
+							'agent_id'   => array(
+								'type'        => array( 'integer', 'null' ),
+								'description' => __( 'Agent ID to filter sessions by. Null or omitted returns all agents.', 'data-machine' ),
+							),
 							'limit'      => array(
 								'type'        => 'integer',
 								'default'     => 20,
@@ -122,9 +126,10 @@ class ListChatSessionsAbility {
 		$limit      = min( 100, max( 1, (int) ( $input['limit'] ?? 20 ) ) );
 		$offset     = max( 0, (int) ( $input['offset'] ?? 0 ) );
 		$agent_type = ! empty( $input['agent_type'] ) ? sanitize_text_field( $input['agent_type'] ) : null;
+		$agent_id   = isset( $input['agent_id'] ) && is_numeric( $input['agent_id'] ) ? (int) $input['agent_id'] : null;
 
-		$sessions = $this->chat_db->get_user_sessions( $user_id, $limit, $offset, $agent_type );
-		$total    = $this->chat_db->get_user_session_count( $user_id, $agent_type );
+		$sessions = $this->chat_db->get_user_sessions( $user_id, $limit, $offset, $agent_type, $agent_id );
+		$total    = $this->chat_db->get_user_session_count( $user_id, $agent_type, $agent_id );
 
 		return array(
 			'success'    => true,
