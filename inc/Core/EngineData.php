@@ -189,6 +189,22 @@ class EngineData {
 	}
 
 	/**
+	 * Get agent ID from job context.
+	 *
+	 * Returns the agent_id stored in the engine snapshot's job context,
+	 * or null if no agent is associated with this execution.
+	 *
+	 * @since 0.41.0
+	 * @return int|null Agent ID or null.
+	 */
+	public function getAgentId(): ?int {
+		$job_context = $this->getJobContext();
+		$agent_id    = $job_context['agent_id'] ?? null;
+
+		return null !== $agent_id ? (int) $agent_id : null;
+	}
+
+	/**
 	 * Get full flow configuration snapshot.
 	 */
 	public function getFlowConfig(): array {

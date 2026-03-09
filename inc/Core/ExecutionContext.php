@@ -35,6 +35,7 @@ class ExecutionContext {
 	private int|string|null $flow_id;
 	private ?string $flow_step_id;
 	private ?string $job_id;
+	private ?int $agent_id;
 	private string $handler_type;
 	private ?EngineData $engine = null;
 
@@ -47,7 +48,8 @@ class ExecutionContext {
 		int|string|null $flow_id,
 		?string $flow_step_id,
 		?string $job_id,
-		string $handler_type = ''
+		string $handler_type = '',
+		?int $agent_id = null
 	) {
 		$this->mode         = $mode;
 		$this->pipeline_id  = $pipeline_id;
@@ -55,6 +57,7 @@ class ExecutionContext {
 		$this->flow_step_id = $flow_step_id;
 		$this->job_id       = $job_id;
 		$this->handler_type = $handler_type;
+		$this->agent_id     = $agent_id;
 	}
 
 	/**
@@ -88,6 +91,7 @@ class ExecutionContext {
 	 * @param string      $flow_step_id Flow step ID for deduplication
 	 * @param string|null $job_id Job ID for engine data storage
 	 * @param string      $handler_type Handler type identifier
+	 * @param int|null    $agent_id Agent ID for agent-scoped execution
 	 * @return self
 	 */
 	public static function fromFlow(
@@ -95,7 +99,8 @@ class ExecutionContext {
 		int $flow_id,
 		string $flow_step_id,
 		?string $job_id,
-		string $handler_type = ''
+		string $handler_type = '',
+		?int $agent_id = null
 	): self {
 		return new self(
 			self::MODE_FLOW,
@@ -103,7 +108,8 @@ class ExecutionContext {
 			$flow_id,
 			$flow_step_id,
 			$job_id,
-			$handler_type
+			$handler_type,
+			$agent_id
 		);
 	}
 
@@ -142,6 +148,7 @@ class ExecutionContext {
 	public static function fromConfig( array $config, ?string $job_id = null, string $handler_type = '' ): self {
 		$flow_id     = $config['flow_id'] ?? null;
 		$pipeline_id = $config['pipeline_id'] ?? null;
+		$agent_id    = isset( $config['agent_id'] ) ? (int) $config['agent_id'] : null;
 
 		if ( 'direct' === $flow_id || 'direct' === $pipeline_id ) {
 			return new self(
@@ -150,7 +157,8 @@ class ExecutionContext {
 				'direct',
 				$config['flow_step_id'] ?? 'direct_' . wp_generate_uuid4(),
 				$job_id,
-				$handler_type
+				$handler_type,
+				$agent_id
 			);
 		}
 
@@ -164,7 +172,8 @@ class ExecutionContext {
 			(int) $flow_id,
 			$config['flow_step_id'] ?? '',
 			$job_id,
-			$handler_type
+			$handler_type,
+			$agent_id
 		);
 	}
 
@@ -367,6 +376,11 @@ class ExecutionContext {
 			$context['handler'] = $this->handler_type;
 		}
 
+		$agent_id = $this->getAgentId();
+		if ( null !== $agent_id ) {
+			$context['agent_id'] = $agent_id;
+		}
+
 		do_action( 'datamachine_log', $level, $message, $context );
 	}
 
@@ -417,6 +431,29 @@ class ExecutionContext {
 	 */
 	public function getHandlerType(): string {
 		return $this->handler_type;
+	}
+
+	/**
+	 * Get agent ID.
+	 *
+	 * Returns the agent_id for this execution context. In flow mode this is
+	 * resolved from the flow/pipeline's agent_id. Falls back to the engine
+	 * data's job context if not set explicitly.
+	 *
+	 * @since 0.41.0
+	 * @return int|null Agent ID or null if no agent scope.
+	 */
+	public function getAgentId(): ?int {
+		if ( null !== $this->agent_id ) {
+			return $this->agent_id;
+		}
+
+		// Fall back to engine data's job context if a job_id is present.
+		if ( $this->job_id ) {
+			return $this->getEngine()->getAgentId();
+		}
+
+		return null;
 	}
 
 	/**
