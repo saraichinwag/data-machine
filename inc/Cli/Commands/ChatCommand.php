@@ -73,7 +73,7 @@ class ChatCommand extends BaseCommand {
 		$user_id = $this->get_user_id( $assoc_args );
 		$limit   = min( 100, max( 1, (int) ( $assoc_args['limit'] ?? 20 ) ) );
 		$offset  = max( 0, (int) ( $assoc_args['offset'] ?? 0 ) );
-		$agent_type = ! empty( $assoc_args['agent-type'] ) ? sanitize_text_field( $assoc_args['agent-type'] ) : null;
+		$agent_type = ! empty( $assoc_args['agent-type'] ) ? sanitize_text_field( $assoc_args['agent-type'] ) : 'chat';
 
 		$chat_db = new ChatDatabase();
 		$sessions = $chat_db->get_user_sessions( $user_id, $limit, $offset, $agent_type );
