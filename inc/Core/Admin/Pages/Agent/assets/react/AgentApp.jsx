@@ -2,7 +2,7 @@
  * AgentApp Component
  *
  * Root container for the Agent admin page.
- * Tabbed layout: Memory, System Tasks, Tools, and Configuration.
+ * Tabbed layout: Manage, Memory, System Tasks, Tools, and Configuration.
  */
 
 /**
@@ -23,10 +23,12 @@ import AgentFileEditor from './components/AgentFileEditor';
 import AgentEmptyState from './components/AgentEmptyState';
 import AgentSettings from './components/AgentSettings';
 import AgentToolsTab from './components/AgentToolsTab';
+import AgentListTab from './components/AgentListTab';
 import SystemTasksTab from './components/SystemTasksTab';
 import { useAgentFiles } from './queries/agentFiles';
 
 const TABS = [
+	{ name: 'manage', title: 'Manage' },
 	{ name: 'memory', title: 'Memory' },
 	{ name: 'system-tasks', title: 'System Tasks' },
 	{ name: 'tools', title: 'Tools' },
@@ -54,8 +56,12 @@ const AgentApp = () => {
 				className="datamachine-tabs"
 				tabs={ TABS }
 			>
-				{ ( tab ) => {
-					if ( tab.name === 'memory' ) {
+			{ ( tab ) => {
+				if ( tab.name === 'manage' ) {
+					return <AgentListTab />;
+				}
+
+				if ( tab.name === 'memory' ) {
 						return (
 							<div className="datamachine-agent-layout">
 								<AgentFileList
