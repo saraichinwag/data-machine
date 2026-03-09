@@ -2,6 +2,32 @@
 
 All notable changes to Data Machine will be documented in this file.
 
+## [0.39.0] - 2026-03-09
+
+### Added
+- feat(#741): delete AgentType class — replace with string literals
+- feat(#741): rename surface→context, add per-agent tool policies
+- feat(#741): unify tool registry — single datamachine_tools filter with context arrays
+- feat(#746): modernize logging — replace Monolog file routing with agent_id database-backed logs (#747)
+- feat(#735): agent-first scoping — Phase 1 schema, DB layer, and permissions (#738)
+- feat(#573): multi-agent UI scoping — REST API user_id filtering and ownership guards (#734)
+- feat(#731): unify duplicate detection with SimilarityEngine and check-duplicate ability
+- feat(#626): add wp datamachine flows bulk-config CLI command
+- feat(#645): add ToolPolicyResolver — unified tool resolution for all surfaces
+
+### Changed
+- deprecated methods delegate to ToolPolicyResolver, one code path
+- decouple Jobs from pipeline_id/flow_id requirement (#571) (#725)
+
+### Fixed
+- remove brain emoji and special styling from SOUL.md, rename Agent page to Agents (#736) (#739)
+- fix(#730): queue-add uses unified check-duplicate instead of QueueValidator
+- rewrite SettingsCommandTest to use Abilities API instead of WP_CLI
+- remove legacy handler_config/handler_slug singular format (#712)
+- fix(#699): move batch state from transient to engine_data (#710)
+- resolve last 2 test failures — flow_id type cast and QueueAbility re-registration (#724)
+- rename $class param to $class_name in StepTypeRegistrationTrait — fixes bootstrap crash (#711)
+
 ## [0.38.0] - 2026-03-08
 
 ### Added
