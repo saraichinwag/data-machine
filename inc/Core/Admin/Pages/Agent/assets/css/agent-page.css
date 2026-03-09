@@ -459,3 +459,191 @@
 .datamachine-agent-settings .datamachine-ai-provider-model-settings {
 	max-width: 500px;
 }
+
+/* --- Agent List Tab --- */
+
+.datamachine-agent-list-tab {
+	padding: 16px 0;
+}
+
+.datamachine-agent-list-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 16px;
+}
+
+.datamachine-agent-list-count {
+	color: #646970;
+	margin: 0;
+}
+
+.datamachine-agent-table .column-name {
+	width: 30%;
+}
+
+.datamachine-agent-table .column-slug {
+	width: 20%;
+}
+
+.datamachine-agent-table .column-status {
+	width: 12%;
+}
+
+.datamachine-agent-table .column-created {
+	width: 18%;
+}
+
+.datamachine-agent-table .column-actions {
+	width: 20%;
+}
+
+.datamachine-agent-name-link {
+	background: none;
+	border: none;
+	color: #2271b1;
+	cursor: pointer;
+	padding: 0;
+	font: inherit;
+	text-align: left;
+}
+
+.datamachine-agent-name-link:hover {
+	color: #135e96;
+	text-decoration: underline;
+}
+
+.datamachine-status-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	border-radius: 3px;
+	font-size: 12px;
+	font-weight: 500;
+	text-transform: capitalize;
+}
+
+.datamachine-agent-empty {
+	text-align: center;
+	padding: 40px 20px;
+	color: #646970;
+}
+
+.datamachine-agent-empty p {
+	margin-bottom: 16px;
+}
+
+.datamachine-agent-list-loading {
+	display: flex;
+	justify-content: center;
+	padding: 40px;
+}
+
+.datamachine-create-agent-modal .components-modal__content {
+	min-width: 400px;
+}
+
+/* --- Agent Edit View --- */
+
+.datamachine-agent-edit-view {
+	padding: 16px 0;
+	max-width: 800px;
+}
+
+.datamachine-agent-edit-header {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin-bottom: 20px;
+}
+
+.datamachine-agent-edit-header h2 {
+	margin: 0;
+	font-size: 1.3em;
+}
+
+.datamachine-agent-identity-card {
+	margin-bottom: 20px;
+}
+
+.datamachine-agent-identity-card h3,
+.datamachine-access-panel h3 {
+	margin: 0;
+	font-size: 14px;
+}
+
+.datamachine-agent-meta {
+	margin: 16px 0;
+	padding: 12px 16px;
+	background: #f6f7f7;
+	border-radius: 4px;
+}
+
+.datamachine-agent-meta p {
+	margin: 4px 0;
+	font-size: 13px;
+	color: #50575e;
+}
+
+.datamachine-agent-edit-loading,
+.datamachine-agent-edit-error {
+	padding: 40px;
+	text-align: center;
+}
+
+/* --- Access Panel --- */
+
+.datamachine-access-panel {
+	margin-bottom: 20px;
+}
+
+.datamachine-access-table .datamachine-access-email {
+	color: #646970;
+	font-size: 12px;
+}
+
+.datamachine-role-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	background: #e7f5fe;
+	color: #0a4b78;
+	border-radius: 3px;
+	font-size: 12px;
+	font-weight: 500;
+	text-transform: capitalize;
+}
+
+.datamachine-owner-label {
+	color: #646970;
+	font-size: 12px;
+}
+
+.datamachine-grant-form {
+	margin-top: 20px;
+	padding-top: 16px;
+	border-top: 1px solid #e0e0e0;
+}
+
+.datamachine-grant-form h4 {
+	margin: 0 0 12px;
+	font-size: 13px;
+}
+
+.datamachine-grant-form-row {
+	display: flex;
+	gap: 12px;
+	align-items: flex-end;
+}
+
+.datamachine-grant-form-row .components-base-control {
+	flex: 1;
+}
+
+.datamachine-grant-button {
+	flex-shrink: 0;
+	margin-bottom: 8px;
+}
+
+.datamachine-no-grants {
+	color: #646970;
+	font-style: italic;
+}
