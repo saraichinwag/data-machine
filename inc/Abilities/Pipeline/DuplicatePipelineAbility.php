@@ -46,6 +46,10 @@ class DuplicatePipelineAbility {
 								'type'        => 'string',
 								'description' => __( 'Name for the new pipeline (defaults to "Copy of {original}")', 'data-machine' ),
 							),
+							'agent_id'    => array(
+								'type'        => array( 'integer', 'null' ),
+								'description' => __( 'Agent ID for the new pipeline. Defaults to source pipeline agent_id.', 'data-machine' ),
+							),
 						),
 					),
 					'output_schema'       => array(
@@ -106,12 +110,22 @@ class DuplicatePipelineAbility {
 			? sanitize_text_field( $input['new_name'] )
 			: sprintf( 'Copy of %s', $source_name );
 
-		$new_pipeline_id = $this->db_pipelines->create_pipeline(
-			array(
-				'pipeline_name'   => $new_name,
-				'pipeline_config' => array(),
-			)
+		// Carry agent_id from source pipeline (or allow explicit override via input).
+		$agent_id = isset( $input['agent_id'] ) ? (int) $input['agent_id'] : null;
+		if ( null === $agent_id && ! empty( $source_pipeline['agent_id'] ) ) {
+			$agent_id = (int) $source_pipeline['agent_id'];
+		}
+
+		$pipeline_data = array(
+			'pipeline_name'   => $new_name,
+			'pipeline_config' => array(),
 		);
+
+		if ( null !== $agent_id && $agent_id > 0 ) {
+			$pipeline_data['agent_id'] = $agent_id;
+		}
+
+		$new_pipeline_id = $this->db_pipelines->create_pipeline( $pipeline_data );
 
 		if ( ! $new_pipeline_id ) {
 			return array(
@@ -156,13 +170,17 @@ class DuplicatePipelineAbility {
 			$create_flow_ability = wp_get_ability( 'datamachine/create-flow' );
 			$flow_result         = null;
 			if ( $create_flow_ability ) {
-				$flow_result = $create_flow_ability->execute(
-					array(
-						'pipeline_id'       => $new_pipeline_id,
-						'flow_name'         => $new_flow_name,
-						'scheduling_config' => $interval_only_config,
-					)
+				$flow_input = array(
+					'pipeline_id'       => $new_pipeline_id,
+					'flow_name'         => $new_flow_name,
+					'scheduling_config' => $interval_only_config,
 				);
+
+				if ( null !== $agent_id && $agent_id > 0 ) {
+					$flow_input['agent_id'] = $agent_id;
+				}
+
+				$flow_result = $create_flow_ability->execute( $flow_input );
 			}
 
 			if ( $flow_result && $flow_result['success'] ) {

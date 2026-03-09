@@ -43,6 +43,10 @@ class CreatePipelineAbility {
 								'type'        => 'string',
 								'description' => __( 'Pipeline name (single mode)', 'data-machine' ),
 							),
+							'agent_id'      => array(
+								'type'        => array( 'integer', 'null' ),
+								'description' => __( 'Agent ID to scope the pipeline to. When provided, the pipeline is owned by this agent.', 'data-machine' ),
+							),
 							'steps'         => array(
 								'type'        => 'array',
 								'description' => __( 'Optional steps configuration (each with step_type, optional label)', 'data-machine' ),
@@ -142,6 +146,7 @@ class CreatePipelineAbility {
 			);
 		}
 
+		$agent_id    = isset( $input['agent_id'] ) ? (int) $input['agent_id'] : null;
 		$steps       = $input['steps'] ?? array();
 		$flow_config = $input['flow_config'] ?? array();
 
@@ -157,12 +162,16 @@ class CreatePipelineAbility {
 			}
 		}
 
-		$pipeline_id = $this->db_pipelines->create_pipeline(
-			array(
-				'pipeline_name'   => $pipeline_name,
-				'pipeline_config' => array(),
-			)
+		$pipeline_data = array(
+			'pipeline_name'   => $pipeline_name,
+			'pipeline_config' => array(),
 		);
+
+		if ( null !== $agent_id && $agent_id > 0 ) {
+			$pipeline_data['agent_id'] = $agent_id;
+		}
+
+		$pipeline_id = $this->db_pipelines->create_pipeline( $pipeline_data );
 
 		if ( ! $pipeline_id ) {
 			do_action( 'datamachine_log', 'error', 'Failed to create pipeline', array( 'pipeline_name' => $pipeline_name ) );
@@ -220,13 +229,17 @@ class CreatePipelineAbility {
 
 			$create_flow_ability = wp_get_ability( 'datamachine/create-flow' );
 			if ( $create_flow_ability ) {
-				$flow_result = $create_flow_ability->execute(
-					array(
-						'pipeline_id'       => $pipeline_id,
-						'flow_name'         => $flow_name,
-						'scheduling_config' => $scheduling_config,
-					)
+				$flow_input = array(
+					'pipeline_id'       => $pipeline_id,
+					'flow_name'         => $flow_name,
+					'scheduling_config' => $scheduling_config,
 				);
+
+				if ( null !== $agent_id && $agent_id > 0 ) {
+					$flow_input['agent_id'] = $agent_id;
+				}
+
+				$flow_result = $create_flow_ability->execute( $flow_input );
 			}
 
 			if ( ! $flow_result || ! $flow_result['success'] ) {
@@ -374,6 +387,8 @@ class CreatePipelineAbility {
 		$created_count = 0;
 		$failed_count  = 0;
 
+		$agent_id = isset( $input['agent_id'] ) ? (int) $input['agent_id'] : null;
+
 		foreach ( $pipelines as $index => $pipeline_config ) {
 			$name  = $pipeline_config['name'];
 			$steps = ! empty( $pipeline_config['steps'] ) ? $pipeline_config['steps'] : $template_steps;
@@ -382,6 +397,10 @@ class CreatePipelineAbility {
 				'pipeline_name' => $name,
 				'steps'         => $steps,
 			);
+
+			if ( null !== $agent_id && $agent_id > 0 ) {
+				$single_input['agent_id'] = $agent_id;
+			}
 
 			// Only create a flow if flow_name or scheduling_config is explicitly provided.
 			$has_flow_config = isset( $pipeline_config['flow_name'] ) || isset( $pipeline_config['scheduling_config'] ) || isset( $template['scheduling_config'] );
