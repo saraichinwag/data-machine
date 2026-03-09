@@ -259,4 +259,210 @@ class AgentAbilities {
 			'agents'  => $agents,
 		);
 	}
+
+	/**
+	 * Create a new agent.
+	 *
+	 * @param array $input { agent_slug, agent_name, owner_id, config? }.
+	 * @return array Result with agent_id on success.
+	 */
+	public static function createAgent( array $input ): array {
+		$slug     = sanitize_title( $input['agent_slug'] ?? '' );
+		$name     = sanitize_text_field( $input['agent_name'] ?? '' );
+		$owner_id = (int) ( $input['owner_id'] ?? 0 );
+		$config   = $input['config'] ?? array();
+
+		if ( empty( $slug ) ) {
+			return array(
+				'success' => false,
+				'error'   => 'Agent slug is required.',
+			);
+		}
+
+		if ( empty( $name ) ) {
+			$name = $slug;
+		}
+
+		if ( $owner_id <= 0 ) {
+			return array(
+				'success' => false,
+				'error'   => 'Owner user ID is required (--owner=<user_id>).',
+			);
+		}
+
+		$user = get_user_by( 'id', $owner_id );
+		if ( ! $user ) {
+			return array(
+				'success' => false,
+				'error'   => sprintf( 'Owner user ID %d not found.', $owner_id ),
+			);
+		}
+
+		$agents_repo = new Agents();
+
+		// Check for conflict.
+		$existing = $agents_repo->get_by_slug( $slug );
+		if ( $existing ) {
+			return array(
+				'success' => false,
+				'error'   => sprintf( 'Agent with slug "%s" already exists (ID: %d).', $slug, $existing['agent_id'] ),
+			);
+		}
+
+		$agent_id = $agents_repo->create_if_missing( $slug, $name, $owner_id, $config );
+
+		if ( ! $agent_id ) {
+			return array(
+				'success' => false,
+				'error'   => 'Failed to create agent in database.',
+			);
+		}
+
+		// Bootstrap owner access.
+		$access_repo = new \DataMachine\Core\Database\Agents\AgentAccess();
+		$access_repo->bootstrap_owner_access( $agent_id, $owner_id );
+
+		// Ensure agent directory exists.
+		$directory_manager = new DirectoryManager();
+		$agent_dir         = $directory_manager->get_agent_identity_directory( $slug );
+		$directory_manager->ensure_directory_exists( $agent_dir );
+
+		return array(
+			'success'    => true,
+			'agent_id'   => $agent_id,
+			'agent_slug' => $slug,
+			'agent_name' => $name,
+			'owner_id'   => $owner_id,
+			'agent_dir'  => $agent_dir,
+			'message'    => sprintf( 'Agent "%s" created (ID: %d).', $slug, $agent_id ),
+		);
+	}
+
+	/**
+	 * Get a single agent by slug or ID.
+	 *
+	 * @param array $input { agent_slug or agent_id }.
+	 * @return array Agent data or error.
+	 */
+	public static function getAgent( array $input ): array {
+		$agents_repo = new Agents();
+		$agent       = null;
+
+		if ( ! empty( $input['agent_slug'] ) ) {
+			$agent = $agents_repo->get_by_slug( sanitize_title( $input['agent_slug'] ) );
+		} elseif ( ! empty( $input['agent_id'] ) ) {
+			$agent = $agents_repo->get_agent( (int) $input['agent_id'] );
+		}
+
+		if ( ! $agent ) {
+			return array(
+				'success' => false,
+				'error'   => 'Agent not found.',
+			);
+		}
+
+		// Enrich with access grants.
+		$access_repo = new \DataMachine\Core\Database\Agents\AgentAccess();
+		$access      = $access_repo->get_users_for_agent( (int) $agent['agent_id'] );
+
+		// Check for agent directory.
+		$directory_manager = new DirectoryManager();
+		$agent_dir         = $directory_manager->get_agent_identity_directory( $agent['agent_slug'] );
+
+		return array(
+			'success' => true,
+			'agent'   => array(
+				'agent_id'     => (int) $agent['agent_id'],
+				'agent_slug'   => (string) $agent['agent_slug'],
+				'agent_name'   => (string) $agent['agent_name'],
+				'owner_id'     => (int) $agent['owner_id'],
+				'agent_config' => is_array( $agent['agent_config'] ?? null )
+					? $agent['agent_config']
+					: ( json_decode( $agent['agent_config'] ?? '{}', true ) ?: array() ),
+				'status'       => (string) $agent['status'],
+				'created_at'   => $agent['created_at'] ?? '',
+				'updated_at'   => $agent['updated_at'] ?? '',
+				'agent_dir'    => $agent_dir,
+				'has_files'    => is_dir( $agent_dir ),
+				'access'       => $access,
+			),
+		);
+	}
+
+	/**
+	 * Delete an agent.
+	 *
+	 * Removes the agent record and access grants. Does NOT delete
+	 * the filesystem directory (use --delete-files for that).
+	 *
+	 * @param array $input { agent_slug or agent_id, delete_files? }.
+	 * @return array Result.
+	 */
+	public static function deleteAgent( array $input ): array {
+		$agents_repo = new Agents();
+		$agent       = null;
+
+		if ( ! empty( $input['agent_slug'] ) ) {
+			$agent = $agents_repo->get_by_slug( sanitize_title( $input['agent_slug'] ) );
+		} elseif ( ! empty( $input['agent_id'] ) ) {
+			$agent = $agents_repo->get_agent( (int) $input['agent_id'] );
+		}
+
+		if ( ! $agent ) {
+			return array(
+				'success' => false,
+				'error'   => 'Agent not found.',
+			);
+		}
+
+		$agent_id = (int) $agent['agent_id'];
+		$slug     = (string) $agent['agent_slug'];
+
+		// Delete access grants.
+		global $wpdb;
+		$access_table = $wpdb->prefix . 'datamachine_agent_access';
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$wpdb->delete( $access_table, array( 'agent_id' => $agent_id ) );
+
+		// Delete agent record.
+		$agents_table = $wpdb->prefix . 'datamachine_agents';
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		$deleted = $wpdb->delete( $agents_table, array( 'agent_id' => $agent_id ) );
+
+		if ( false === $deleted ) {
+			return array(
+				'success' => false,
+				'error'   => 'Failed to delete agent from database.',
+			);
+		}
+
+		// Optionally delete files.
+		$files_deleted = false;
+		if ( ! empty( $input['delete_files'] ) ) {
+			$directory_manager = new DirectoryManager();
+			$agent_dir         = $directory_manager->get_agent_identity_directory( $slug );
+			if ( is_dir( $agent_dir ) ) {
+				// Recursive delete.
+				$iterator = new \RecursiveDirectoryIterator( $agent_dir, \RecursiveDirectoryIterator::SKIP_DOTS );
+				$files    = new \RecursiveIteratorIterator( $iterator, \RecursiveIteratorIterator::CHILD_FIRST );
+				foreach ( $files as $file ) {
+					if ( $file->isDir() ) {
+						rmdir( $file->getRealPath() );
+					} else {
+						unlink( $file->getRealPath() );
+					}
+				}
+				rmdir( $agent_dir );
+				$files_deleted = true;
+			}
+		}
+
+		return array(
+			'success'       => true,
+			'agent_id'      => $agent_id,
+			'agent_slug'    => $slug,
+			'files_deleted' => $files_deleted,
+			'message'       => sprintf( 'Agent "%s" (ID: %d) deleted.%s', $slug, $agent_id, $files_deleted ? ' Files removed.' : '' ),
+		);
+	}
 }

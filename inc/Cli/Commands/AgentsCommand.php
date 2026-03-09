@@ -135,4 +135,399 @@ class AgentsCommand extends BaseCommand {
 			WP_CLI::error( $result['message'] );
 		}
 	}
+
+	/**
+	 * Create a new agent.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <slug>
+	 * : Agent slug (kebab-case identifier).
+	 *
+	 * [--name=<name>]
+	 * : Agent display name. Defaults to the slug.
+	 *
+	 * [--owner=<user>]
+	 * : Owner WordPress user ID, login, or email.
+	 *
+	 * [--config=<json>]
+	 * : JSON object with agent configuration.
+	 *
+	 * [--format=<format>]
+	 * : Output format.
+	 * ---
+	 * default: table
+	 * options:
+	 *   - table
+	 *   - json
+	 * ---
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp datamachine agents create analytics-bot --name="Analytics Bot" --owner=1
+	 *     wp datamachine agents create content-bot --owner=chubes
+	 *
+	 * @subcommand create
+	 */
+	public function create( array $args, array $assoc_args ): void {
+		$slug   = sanitize_title( $args[0] ?? '' );
+		$name   = $assoc_args['name'] ?? '';
+		$format = $assoc_args['format'] ?? 'table';
+
+		if ( empty( $slug ) ) {
+			WP_CLI::error( 'Agent slug is required.' );
+			return;
+		}
+
+		// Resolve owner.
+		$owner_value = $assoc_args['owner'] ?? null;
+		if ( null === $owner_value ) {
+			WP_CLI::error( 'Owner is required (--owner=<user_id|login|email>).' );
+			return;
+		}
+
+		$owner_id = $this->resolveUserId( $owner_value );
+
+		$config = array();
+		if ( isset( $assoc_args['config'] ) ) {
+			$config = json_decode( wp_unslash( $assoc_args['config'] ), true );
+			if ( null === $config ) {
+				WP_CLI::error( 'Invalid JSON in --config.' );
+				return;
+			}
+		}
+
+		$result = AgentAbilities::createAgent(
+			array(
+				'agent_slug' => $slug,
+				'agent_name' => $name,
+				'owner_id'   => $owner_id,
+				'config'     => $config,
+			)
+		);
+
+		if ( ! $result['success'] ) {
+			WP_CLI::error( $result['error'] ?? 'Failed to create agent.' );
+			return;
+		}
+
+		WP_CLI::success( $result['message'] );
+
+		if ( 'json' === $format ) {
+			WP_CLI::line( wp_json_encode( $result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) );
+		} else {
+			WP_CLI::log( sprintf( 'Agent ID:  %d', $result['agent_id'] ) );
+			WP_CLI::log( sprintf( 'Slug:      %s', $result['agent_slug'] ) );
+			WP_CLI::log( sprintf( 'Name:      %s', $result['agent_name'] ) );
+			WP_CLI::log( sprintf( 'Owner:     %d', $result['owner_id'] ) );
+			WP_CLI::log( sprintf( 'Directory: %s', $result['agent_dir'] ) );
+		}
+	}
+
+	/**
+	 * Show detailed agent information.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <slug>
+	 * : Agent slug or numeric ID.
+	 *
+	 * [--format=<format>]
+	 * : Output format.
+	 * ---
+	 * default: table
+	 * options:
+	 *   - table
+	 *   - json
+	 * ---
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp datamachine agents show chubes-bot
+	 *     wp datamachine agents show 1 --format=json
+	 *
+	 * @subcommand show
+	 */
+	public function show( array $args, array $assoc_args ): void {
+		$identifier = $args[0] ?? '';
+		$format     = $assoc_args['format'] ?? 'table';
+
+		$input = is_numeric( $identifier )
+			? array( 'agent_id' => (int) $identifier )
+			: array( 'agent_slug' => $identifier );
+
+		$result = AgentAbilities::getAgent( $input );
+
+		if ( ! $result['success'] ) {
+			WP_CLI::error( $result['error'] ?? 'Agent not found.' );
+			return;
+		}
+
+		$agent = $result['agent'];
+
+		if ( 'json' === $format ) {
+			WP_CLI::line( wp_json_encode( $agent, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) );
+			return;
+		}
+
+		$owner = get_user_by( 'id', $agent['owner_id'] );
+
+		WP_CLI::log( sprintf( 'Agent ID:    %d', $agent['agent_id'] ) );
+		WP_CLI::log( sprintf( 'Slug:        %s', $agent['agent_slug'] ) );
+		WP_CLI::log( sprintf( 'Name:        %s', $agent['agent_name'] ) );
+		WP_CLI::log( sprintf( 'Owner:       %s (ID: %d)', $owner ? $owner->user_login : '(deleted)', $agent['owner_id'] ) );
+		WP_CLI::log( sprintf( 'Status:      %s', $agent['status'] ) );
+		WP_CLI::log( sprintf( 'Created:     %s', $agent['created_at'] ) );
+		WP_CLI::log( sprintf( 'Updated:     %s', $agent['updated_at'] ) );
+		WP_CLI::log( sprintf( 'Directory:   %s', $agent['agent_dir'] ) );
+		WP_CLI::log( sprintf( 'Has files:   %s', $agent['has_files'] ? 'Yes' : 'No' ) );
+
+		// Config.
+		if ( ! empty( $agent['agent_config'] ) ) {
+			WP_CLI::log( '' );
+			WP_CLI::log( 'Config:' );
+			WP_CLI::log( wp_json_encode( $agent['agent_config'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) );
+		}
+
+		// Access grants.
+		$access = $agent['access'] ?? array();
+		if ( ! empty( $access ) ) {
+			WP_CLI::log( '' );
+			WP_CLI::log( 'Access grants:' );
+			$access_items = array();
+			foreach ( $access as $grant ) {
+				$grant_user     = get_user_by( 'id', $grant['user_id'] );
+				$access_items[] = array(
+					'user_id' => $grant['user_id'],
+					'login'   => $grant_user ? $grant_user->user_login : '(deleted)',
+					'role'    => $grant['role'],
+				);
+			}
+			\WP_CLI\Utils\format_items( 'table', $access_items, array( 'user_id', 'login', 'role' ) );
+		}
+	}
+
+	/**
+	 * Delete an agent.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <slug>
+	 * : Agent slug or numeric ID.
+	 *
+	 * [--delete-files]
+	 * : Also delete the agent's filesystem directory (SOUL.md, MEMORY.md, etc.).
+	 *
+	 * [--yes]
+	 * : Skip confirmation prompt.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp datamachine agents delete analytics-bot
+	 *     wp datamachine agents delete analytics-bot --delete-files --yes
+	 *
+	 * @subcommand delete
+	 */
+	public function delete( array $args, array $assoc_args ): void {
+		$identifier   = $args[0] ?? '';
+		$delete_files = isset( $assoc_args['delete-files'] );
+		$skip_confirm = isset( $assoc_args['yes'] );
+
+		$input = is_numeric( $identifier )
+			? array( 'agent_id' => (int) $identifier )
+			: array( 'agent_slug' => $identifier );
+
+		// Get agent info for confirmation.
+		$info = AgentAbilities::getAgent( $input );
+		if ( ! $info['success'] ) {
+			WP_CLI::error( $info['error'] ?? 'Agent not found.' );
+			return;
+		}
+
+		$agent = $info['agent'];
+
+		if ( ! $skip_confirm ) {
+			$message = sprintf(
+				'Delete agent "%s" (ID: %d)?',
+				$agent['agent_slug'],
+				$agent['agent_id']
+			);
+			if ( $delete_files ) {
+				$message .= ' This will also delete agent files (SOUL.md, MEMORY.md, daily/).';
+			}
+			WP_CLI::confirm( $message );
+		}
+
+		$input['delete_files'] = $delete_files;
+		$result                = AgentAbilities::deleteAgent( $input );
+
+		if ( ! $result['success'] ) {
+			WP_CLI::error( $result['error'] ?? 'Failed to delete agent.' );
+			return;
+		}
+
+		WP_CLI::success( $result['message'] );
+	}
+
+	/**
+	 * Manage agent access grants.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <action>
+	 * : Action: grant, revoke, or list.
+	 *
+	 * <slug>
+	 * : Agent slug.
+	 *
+	 * [<user>]
+	 * : User ID, login, or email (required for grant/revoke).
+	 *
+	 * [--role=<role>]
+	 * : Access role (grant only).
+	 * ---
+	 * default: operator
+	 * options:
+	 *   - admin
+	 *   - operator
+	 *   - viewer
+	 * ---
+	 *
+	 * [--format=<format>]
+	 * : Output format (list only).
+	 * ---
+	 * default: table
+	 * options:
+	 *   - table
+	 *   - json
+	 *   - csv
+	 *   - yaml
+	 * ---
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp datamachine agents access grant chubes-bot 2 --role=admin
+	 *     wp datamachine agents access revoke chubes-bot 2
+	 *     wp datamachine agents access list chubes-bot
+	 *
+	 * @subcommand access
+	 */
+	public function access( array $args, array $assoc_args ): void {
+		$action = $args[0] ?? '';
+		$slug   = $args[1] ?? '';
+
+		if ( empty( $action ) || empty( $slug ) ) {
+			WP_CLI::error( 'Usage: wp datamachine agents access <grant|revoke|list> <slug> [user] [--role=<role>]' );
+			return;
+		}
+
+		// Resolve agent.
+		$agents_repo = new \DataMachine\Core\Database\Agents\Agents();
+		$agent       = $agents_repo->get_by_slug( sanitize_title( $slug ) );
+
+		if ( ! $agent ) {
+			WP_CLI::error( sprintf( 'Agent "%s" not found.', $slug ) );
+			return;
+		}
+
+		$agent_id    = (int) $agent['agent_id'];
+		$access_repo = new \DataMachine\Core\Database\Agents\AgentAccess();
+
+		switch ( $action ) {
+			case 'list':
+				$grants = $access_repo->get_users_for_agent( $agent_id );
+
+				if ( empty( $grants ) ) {
+					WP_CLI::warning( sprintf( 'No access grants for agent "%s".', $slug ) );
+					return;
+				}
+
+				$items = array();
+				foreach ( $grants as $grant ) {
+					$user    = get_user_by( 'id', $grant['user_id'] );
+					$items[] = array(
+						'user_id' => $grant['user_id'],
+						'login'   => $user ? $user->user_login : '(deleted)',
+						'role'    => $grant['role'],
+					);
+				}
+
+				$this->format_items( $items, array( 'user_id', 'login', 'role' ), $assoc_args, 'user_id' );
+				break;
+
+			case 'grant':
+				$user_value = $args[2] ?? null;
+				if ( null === $user_value ) {
+					WP_CLI::error( 'User is required for grant. Usage: wp datamachine agents access grant <slug> <user> [--role=<role>]' );
+					return;
+				}
+
+				$user_id = $this->resolveUserId( $user_value );
+				$role    = $assoc_args['role'] ?? 'operator';
+
+				$ok = $access_repo->grant_access( $agent_id, $user_id, $role );
+				if ( $ok ) {
+					$user = get_user_by( 'id', $user_id );
+					WP_CLI::success( sprintf(
+						'Granted %s access to %s for agent "%s".',
+						$role,
+						$user ? $user->user_login : "user #{$user_id}",
+						$slug
+					) );
+				} else {
+					WP_CLI::error( 'Failed to grant access.' );
+				}
+				break;
+
+			case 'revoke':
+				$user_value = $args[2] ?? null;
+				if ( null === $user_value ) {
+					WP_CLI::error( 'User is required for revoke.' );
+					return;
+				}
+
+				$user_id = $this->resolveUserId( $user_value );
+				$ok      = $access_repo->revoke_access( $agent_id, $user_id );
+
+				if ( $ok ) {
+					WP_CLI::success( sprintf( 'Revoked access for user %d on agent "%s".', $user_id, $slug ) );
+				} else {
+					WP_CLI::warning( 'No access grant found to revoke.' );
+				}
+				break;
+
+			default:
+				WP_CLI::error( "Unknown action: {$action}. Use: grant, revoke, list" );
+		}
+	}
+
+	/**
+	 * Resolve a user identifier to a WordPress user ID.
+	 *
+	 * @param string|int $value User ID, login, or email.
+	 * @return int WordPress user ID.
+	 */
+	private function resolveUserId( $value ): int {
+		if ( is_numeric( $value ) ) {
+			$user = get_user_by( 'id', (int) $value );
+			if ( ! $user ) {
+				WP_CLI::error( sprintf( 'User ID %d not found.', (int) $value ) );
+			}
+			return $user->ID;
+		}
+
+		if ( is_email( $value ) ) {
+			$user = get_user_by( 'email', $value );
+			if ( ! $user ) {
+				WP_CLI::error( sprintf( 'User with email "%s" not found.', $value ) );
+			}
+			return $user->ID;
+		}
+
+		$user = get_user_by( 'login', $value );
+		if ( ! $user ) {
+			WP_CLI::error( sprintf( 'User with login "%s" not found.', $value ) );
+		}
+		return $user->ID;
+	}
 }
