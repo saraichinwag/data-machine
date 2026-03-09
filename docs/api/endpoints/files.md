@@ -1,6 +1,6 @@
 # Files Endpoint
 
-**Implementation**: `inc/Api/Files.php`
+**Implementation**: `inc/Api/FlowFiles.php`
 
 **Base URL**: `/wp-json/datamachine/v1/files`
 
@@ -340,7 +340,7 @@ done
 
 **Base URL**: `/wp-json/datamachine/v1/files`
 **Permission**: `manage_options` capability required
-**Implementation**: `inc/Api/Files.php`
+**Implementation**: `inc/Api/FlowFiles.php`
 **Max File Size**: 32MB
 
 ## Additional Endpoints

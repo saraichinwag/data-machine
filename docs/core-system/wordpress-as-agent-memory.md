@@ -23,7 +23,7 @@ Three layers, each serving a different purpose:
 
 ### 1. Agent Files — Identity and Knowledge
 
-**Location:** `wp-content/uploads/datamachine-files/agent/`
+**Location:** `wp-content/uploads/datamachine-files/agents/{agent-slug}/`
 
 Markdown files stored on the WordPress filesystem. The agent reads these to know who it is, who it works with, and what it knows.
 
@@ -281,12 +281,12 @@ Agents with shell access can read files directly:
 cat wp-content/uploads/datamachine-files/agent/MEMORY.md
 
 # List all agent files
-ls wp-content/uploads/datamachine-files/agent/
+ls wp-content/uploads/datamachine-files/agents/{agent-slug}/
 ```
 
 ### The Key Principle
 
-However the agent consumes memory — directives, AGENTS.md injection, REST API, direct file read — the **files on disk are the source of truth.** All paths lead to the same markdown documents in `wp-content/uploads/datamachine-files/agent/`.
+However the agent consumes memory — directives, AGENTS.md injection, REST API, direct file read — the **files on disk are the source of truth.** All paths lead to the same markdown documents in `wp-content/uploads/datamachine-files/agents/{agent-slug}/`.
 
 ## Memory Maintenance
 
@@ -354,7 +354,7 @@ Each pipeline explicitly selects which additional memory files it needs. No embe
 
 ### WordPress uploads over custom storage
 
-Files live in `wp-content/uploads/datamachine-files/agent/`. WordPress backup tools include them automatically, standard permissions apply, and no custom mount configuration is needed.
+Files live in `wp-content/uploads/datamachine-files/agents/{agent-slug}/`. WordPress backup tools include them automatically, standard permissions apply, and no custom mount configuration is needed.
 
 ## REST API Reference
 
@@ -398,7 +398,7 @@ use DataMachine\Engine\AI\MemoryFileRegistry;
 MemoryFileRegistry::register( 'brand-guidelines.md', 40 );
 ```
 
-The file must exist in `wp-content/uploads/datamachine-files/agent/`. Missing files are silently skipped.
+The file must exist in the agent identity directory. Missing files are silently skipped.
 
 ### Custom Directives
 

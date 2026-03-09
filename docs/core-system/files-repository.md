@@ -153,7 +153,7 @@ $file_data = $file_retrieval->retrieve_data_by_job_id($job_id, [
 
 Components work together for complete file handling:
 
-> Note: When mapping flow_step_id -> flow_id, the REST API uses `datamachine_get_flow_id_from_step` filter (see datamachine/inc/Api/Files.php:168). Implement this filter when connecting flow-step-aware file operations from extensions.
+> Note: When mapping flow_step_id -> flow_id, the REST API uses `datamachine_get_flow_id_from_step` filter (see `inc/Abilities/File/FlowFileAbilities.php`). Implement this filter when connecting flow-step-aware file operations from extensions.
 
 ```php
 use DataMachine\Core\FilesRepository\RemoteFileDownloader;
