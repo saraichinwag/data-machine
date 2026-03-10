@@ -2,6 +2,30 @@
 
 All notable changes to Data Machine will be documented in this file.
 
+## [0.40.0] - 2026-03-10
+
+### Added
+- Agent edit view with identity editing and access management
+- Agent management UI — list table, create modal, delete confirmation
+- full REST API for agent CRUD and access management
+- agent update ability + register all CRUD as WP Abilities
+- add Chat CLI commands for session management
+- agent scoping for chat sessions — close the last Admin UI gap
+- ExecutionContext and EngineData carry agent identity
+- agent_id context propagation in create/duplicate abilities
+- agent CRUD CLI — create, show, delete, access management
+- add --agent flag across all CLI commands
+- Add granular daily memory selection for flows
+- add datamachine/read-debug-log ability
+- extensible settings — track handled keys, add filter, support github_pat
+
+### Changed
+- GitHubIssueTask delegates to GitHubAbilities::createIssue()
+
+### Fixed
+- use handler discovery tools instead of inline docs
+- use 'chat' as default agent_type in chat list CLI
+
 ## [0.39.0] - 2026-03-09
 
 ### Added
