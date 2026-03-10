@@ -7,7 +7,7 @@
 /**
  * WordPress dependencies
  */
-import { useState, useCallback } from '@wordpress/element';
+import { useCallback } from '@wordpress/element';
 import { Button, SelectControl, SearchControl } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 /**
@@ -28,32 +28,34 @@ const LEVEL_OPTIONS = [
 	{ value: 'debug', label: __( 'Debug', 'data-machine' ) },
 ];
 
-const LogsFilters = () => {
+const LogsFilters = ( { filters, onFiltersChange } ) => {
 	const queryClient = useQueryClient();
-	const [ level, setLevel ] = useState( '' );
-	const [ search, setSearch ] = useState( '' );
 
 	const handleRefresh = useCallback( () => {
 		queryClient.invalidateQueries( { queryKey: logsKeys.all } );
 	}, [ queryClient ] );
 
-	// Store filters on window for LogsTable to read.
-	// This avoids prop-drilling through context for a simple page.
-	window.__dmLogsFilters = { level, search };
+	const setLevel = ( level ) => {
+		onFiltersChange( { ...filters, level } );
+	};
+
+	const setSearch = ( search ) => {
+		onFiltersChange( { ...filters, search } );
+	};
 
 	return (
 		<div className="datamachine-logs-filters">
 			<div className="datamachine-logs-filters-left">
 				<SelectControl
 					label={ __( 'Level', 'data-machine' ) }
-					value={ level }
+					value={ filters.level }
 					options={ LEVEL_OPTIONS }
 					onChange={ setLevel }
 					__nextHasNoMarginBottom
 				/>
 				<SearchControl
 					label={ __( 'Search', 'data-machine' ) }
-					value={ search }
+					value={ filters.search }
 					onChange={ setSearch }
 					placeholder={ __(
 						'Search messages...',

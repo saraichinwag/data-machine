@@ -27,13 +27,10 @@ const LEVEL_COLORS = {
 	debug: '#757575',
 };
 
-const LogsTable = () => {
+const LogsTable = ( { filters = {} } ) => {
 	const [ page, setPage ] = useState( 1 );
 	const perPage = 50;
 	const selectedAgentId = useAgentStore( ( state ) => state.selectedAgentId );
-
-	// Read filters from window (set by LogsFilters).
-	const filters = window.__dmLogsFilters || {};
 
 	const queryFilters = {
 		per_page: perPage,

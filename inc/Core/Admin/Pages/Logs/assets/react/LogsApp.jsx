@@ -6,6 +6,10 @@
  */
 
 /**
+ * WordPress dependencies
+ */
+import { useState } from '@wordpress/element';
+/**
  * Internal dependencies
  */
 import LogsHeader from './components/LogsHeader';
@@ -14,12 +18,14 @@ import LogsFilters from './components/LogsFilters';
 import LogsTable from './components/LogsTable';
 
 const LogsApp = () => {
+	const [ filters, setFilters ] = useState( { level: '', search: '' } );
+
 	return (
 		<div className="datamachine-logs-app">
 			<LogsHeader />
 			<LogsAgentTabs />
-			<LogsFilters />
-			<LogsTable />
+			<LogsFilters filters={ filters } onFiltersChange={ setFilters } />
+			<LogsTable filters={ filters } />
 		</div>
 	);
 };
